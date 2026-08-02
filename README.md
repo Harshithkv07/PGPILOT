@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏠 PGHACKED
+# 🏠 PGPILOT
 ### *The Smart PG Management System*
 
 **A powerful, offline-first Flutter desktop application built to simplify every aspect of running a Paying Guest accommodation — from tenant onboarding to rent collection and financial reporting.**
