@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏠 PGHACKED
+# 🏠 PGPILOT
 ### *The Smart PG Management System*
 
 **A powerful, offline-first Flutter desktop application built to simplify every aspect of running a Paying Guest accommodation — from tenant onboarding to rent collection and financial reporting.**
@@ -52,8 +52,6 @@
 <br/><br/>
 <img src="assets/screenshots/Screenshot 2026-06-19 131818.png" width="800" alt="Room Dashboard Grid"/>
 <br/><br/>
-<img src="assets/screenshots/Screenshot 2026-06-19 130943.png" width="800" alt="Room Dashboard Detailed"/>
-</div>
 
 **Dashboard at a glance:**
 - 🟥 **Red** = Room is **Full**
@@ -71,9 +69,7 @@ Use **Add Room**, **Delete Room**, **Set Prices**, and **Excel Export** right fr
 <div align="center">
 <img src="assets/screenshots/Screenshot 2026-06-19 131833.png" width="800" alt="Students List"/>
 <br/><br/>
-<img src="assets/screenshots/Screenshot 2026-06-19 130953.png" width="800" alt="Students List with Snipping Tool"/>
-</div>
-
+  
 Each student card shows their **name**, **room number**, and quick-action buttons:
 - 📞 **Call** — opens the dialer
 - 💬 **WhatsApp** — opens a chat instantly
