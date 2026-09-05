@@ -27,10 +27,13 @@ class WhatsAppHelper {
   }
 
   // Send rent reminder
-  static Future<bool> sendRentReminder(String phone, String name, int roomNumber) async {
+  static Future<bool> sendRentReminder(String phone, String name, int roomNumber, int amountDue) async {
     final formattedPhone = _formatPhoneNumber(phone);
     final message = 'Hi $name, gentle reminder that rent for Room $roomNumber is pending. '
-        'Please make the payment at your earliest convenience. Thank you!';
+        'Your total due amount is ₹$amountDue. '
+        'Please make the payment at your earliest convenience using the QR code link below:\n\n'
+        '[YOUR_QR_CODE_LINK_HERE]\n\n'
+        'Thank you!';
     
     return await _sendWhatsAppMessage(formattedPhone, message);
   }

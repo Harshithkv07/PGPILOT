@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -5,9 +6,14 @@ import 'package:intl/intl.dart';
 import '../../logic/providers/rent_provider.dart';
 import '../../logic/providers/room_provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
 import '../../core/utils/whatsapp_helper.dart';
 import '../../data/services/file_storage_service.dart';
 import '../../data/database/payment_history_repository.dart';
+import '../widgets/common/premium_card.dart';
+import '../widgets/common/premium_button.dart';
+import '../widgets/common/empty_state.dart';
+import '../widgets/common/compact_action_button.dart';
 
 class RentScreen extends StatefulWidget {
   const RentScreen({super.key});
@@ -17,9 +23,9 @@ class RentScreen extends StatefulWidget {
 }
 
 class _RentScreenState extends State<RentScreen> {
-  final PaymentHistoryRepository _paymentHistoryRepository =
-      PaymentHistoryRepository();
+  final PaymentHistoryRepository _paymentHistoryRepository = PaymentHistoryRepository();
   final FileStorageService _fileStorageService = FileStorageService();
+
   @override
   void initState() {
     super.initState();
@@ -33,8 +39,6 @@ class _RentScreenState extends State<RentScreen> {
     final paymentMode = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Payment Mode'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -45,28 +49,19 @@ class _RentScreenState extends State<RentScreen> {
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.successColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
+                  child: PremiumButton(
+                    label: 'Cash',
+                    icon: Icons.money,
+                    gradient: LinearGradient(colors: [AppColors.successColor, AppColors.successColor]),
                     onPressed: () => Navigator.pop(context, 'Cash'),
-                    icon: const Icon(Icons.money),
-                    label: const Text('Cash'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryAccent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
+                  child: PremiumButton(
+                    label: 'UPI',
+                    icon: Icons.qr_code,
                     onPressed: () => Navigator.pop(context, 'UPI'),
-                    icon: const Icon(Icons.qr_code),
-                    label: const Text('UPI'),
                   ),
                 ),
               ],
@@ -84,18 +79,17 @@ class _RentScreenState extends State<RentScreen> {
 
     if (paymentMode != null && mounted) {
       String? screenshotPath;
-      
-      // If UPI, ask for payment screenshot
+
       if (paymentMode == 'UPI') {
         final result = await FilePicker.platform.pickFiles(
           type: FileType.image,
           dialogTitle: 'Select Payment Screenshot',
         );
-        
+
         if (result != null && result.files.single.path != null) {
           try {
             final currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
-            
+
             screenshotPath = await _fileStorageService.savePaymentScreenshot(
               sourcePath: result.files.single.path!,
               studentName: studentName,
@@ -114,15 +108,16 @@ class _RentScreenState extends State<RentScreen> {
           }
         }
       }
-      
+
+      if (!mounted) return;
       await Provider.of<RentProvider>(context, listen: false)
           .markAsPaid(studentId, paymentMode, screenshotPath);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(screenshotPath != null 
-                ? 'Payment marked as paid with screenshot' 
+            content: Text(screenshotPath != null
+                ? 'Payment marked as paid with screenshot'
                 : 'Payment marked as paid'),
             backgroundColor: AppColors.successColor,
           ),
@@ -135,19 +130,16 @@ class _RentScreenState extends State<RentScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Revert Payment Status'),
-        content: Text('Are you sure you want to revert $studentName\'s payment status to Pending? This will delete the payment record for the current month.'),
+        content: Text(
+            'Are you sure you want to revert $studentName\'s payment status to Pending? This will delete the payment record for the current month.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.errorColor,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Revert'),
           ),
@@ -170,10 +162,7 @@ class _RentScreenState extends State<RentScreen> {
 
   Future<void> _viewCurrentMonthScreenshot(int studentId) async {
     final currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
-    final payment = await _paymentHistoryRepository.getPaymentForMonth(
-      studentId,
-      currentMonth,
-    );
+    final payment = await _paymentHistoryRepository.getPaymentForMonth(studentId, currentMonth);
 
     if (payment == null || payment.screenshotPath == null) {
       if (!mounted) return;
@@ -197,15 +186,15 @@ class _RentScreenState extends State<RentScreen> {
     );
   }
 
-  Future<void> _sendReminder(String contact, String name, int roomNumber) async {
-    final success = await WhatsAppHelper.sendRentReminder(contact, name, roomNumber);
-    
+  Future<void> _sendReminder(String contact, String name, int roomNumber, int amountDue) async {
+    final success = await WhatsAppHelper.sendRentReminder(contact, name, roomNumber, amountDue);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success 
-            ? 'Opening WhatsApp...' 
-            : 'Failed to open WhatsApp. Please check if WhatsApp is installed.'),
+          content: Text(success
+              ? 'Opening WhatsApp...'
+              : 'Failed to open WhatsApp. Please check if WhatsApp is installed.'),
           backgroundColor: success ? AppColors.primaryAccent : AppColors.errorColor,
           duration: Duration(seconds: success ? 2 : 4),
         ),
@@ -228,9 +217,7 @@ class _RentScreenState extends State<RentScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.goldAccent,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.black),
             child: const Text('Start New Month'),
           ),
         ],
@@ -239,7 +226,7 @@ class _RentScreenState extends State<RentScreen> {
 
     if (confirmed == true && mounted) {
       await Provider.of<RentProvider>(context, listen: false).startNewMonth();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -275,100 +262,122 @@ class _RentScreenState extends State<RentScreen> {
                     builder: (context, snapshot) {
                       final collected = snapshot.data?[0] ?? 0;
                       final potential = snapshot.data?[1] ?? 0;
+                      final pending = (potential - collected).clamp(0, potential == 0 ? 0 : potential);
                       final percentage = potential > 0 ? (collected / potential) : 0.0;
-                      
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Monthly Revenue Tracker',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text('Collected', style: TextStyle(color: AppColors.textSecondary)),
-                                      Text(
-                                        '₹${collected.toString()}',
-                                        style: const TextStyle(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.successColor,
-                                        ),
-                                      ),
-                                    ],
+
+                      return PremiumCard(
+                        padding: const EdgeInsets.all(AppSpacing.xl),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Monthly Revenue Tracker',
+                              style: TextStyle(fontFamily: 'Sora', fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 120,
+                                    child: potential == 0
+                                        ? const SizedBox.shrink()
+                                        : BarChart(
+                                            BarChartData(
+                                              alignment: BarChartAlignment.spaceAround,
+                                              maxY: potential.toDouble() * 1.15,
+                                              gridData: const FlGridData(show: false),
+                                              borderData: FlBorderData(show: false),
+                                              titlesData: FlTitlesData(
+                                                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                                bottomTitles: AxisTitles(
+                                                  sideTitles: SideTitles(
+                                                    showTitles: true,
+                                                    getTitlesWidget: (value, meta) {
+                                                      const labels = ['Collected', 'Pending'];
+                                                      final i = value.toInt();
+                                                      if (i < 0 || i > 1) return const SizedBox.shrink();
+                                                      return Padding(
+                                                        padding: const EdgeInsets.only(top: 6),
+                                                        child: Text(labels[i],
+                                                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
+                                              ),
+                                              barGroups: [
+                                                BarChartGroupData(x: 0, barRods: [
+                                                  BarChartRodData(
+                                                    toY: collected.toDouble(),
+                                                    color: AppColors.successColor,
+                                                    width: 28,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                ]),
+                                                BarChartGroupData(x: 1, barRods: [
+                                                  BarChartRodData(
+                                                    toY: pending.toDouble(),
+                                                    color: AppColors.roomFull,
+                                                    width: 28,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                ]),
+                                              ],
+                                            ),
+                                          ),
                                   ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      const Text('Potential', style: TextStyle(color: AppColors.textSecondary)),
-                                      Text(
-                                        '₹${potential.toString()}',
-                                        style: const TextStyle(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.primaryAccent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: LinearProgressIndicator(
-                                  value: percentage,
-                                  minHeight: 12,
-                                  backgroundColor: AppColors.secondaryBackground,
-                                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.successColor),
                                 ),
+                                const SizedBox(width: AppSpacing.xl),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text('Collected', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                    Text('₹$collected',
+                                        style: const TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.successColor)),
+                                    const SizedBox(height: 10),
+                                    const Text('Potential', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                    Text('₹$potential',
+                                        style: const TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primaryAccent)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            ClipRRect(
+                              borderRadius: AppRadius.smBorder,
+                              child: LinearProgressIndicator(
+                                value: percentage,
+                                minHeight: 10,
+                                backgroundColor: AppColors.secondaryBackground,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.successColor),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${(percentage * 100).toStringAsFixed(1)}% Collected',
-                                style: const TextStyle(color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              '${(percentage * 100).toStringAsFixed(1)}% Collected',
+                              style: const TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ],
                         ),
                       );
                     },
                   );
                 },
               ),
-              const SizedBox(height: 24),
-              
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _startNewMonth,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Start New Month'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.goldAccent,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: AppSpacing.xl),
+
+              PremiumButton(
+                label: 'START NEW MONTH',
+                icon: Icons.refresh,
+                onPressed: _startNewMonth,
               ),
-              const SizedBox(height: 24),
-              
-              // Rent Table
+              const SizedBox(height: AppSpacing.xl),
+
+              // Rent Ledger
               Consumer2<RentProvider, RoomProvider>(
                 builder: (context, rentProvider, roomProvider, _) {
                   if (rentProvider.isLoading) {
@@ -379,151 +388,130 @@ class _RentScreenState extends State<RentScreen> {
                       ),
                     );
                   }
-                  
+
                   final students = rentProvider.students;
-                  
+
                   if (students.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          'No students found',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
+                    return const Padding(
+                      padding: EdgeInsets.only(top: 24),
+                      child: EmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'No students found',
                       ),
                     );
                   }
-                  
-                  return SizedBox(
-                    width: double.infinity,
-                    child: Card(
-                      child: LayoutBuilder(
-                        builder: (context, tableConstraints) {
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minWidth: tableConstraints.maxWidth,
-                              ),
-                              child: DataTable(
-                                headingRowColor: WidgetStateProperty.all(
-                                  AppColors.secondaryBackground,
-                                ),
-                                columns: const [
-                                  DataColumn(label: Text('Room', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Student Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Rent Status', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+
+                  return Column(
+                    children: students.map((student) {
+                      final room = roomProvider.getRoomByNumber(student.roomNumber);
+                      final roomStudents = students.where((s) => s.roomNumber == student.roomNumber).length;
+                      int ebShare = 0;
+                      if (room != null && roomStudents > 0 && room.ebBill > 0) {
+                        ebShare = (room.ebBill / roomStudents).round();
+                      }
+                      final amountDue = (room?.price ?? 0) + ebShare;
+                      final isPaid = student.rentStatus == 'Paid';
+                      final statusColor = isPaid ? AppColors.paymentPaid : AppColors.paymentPending;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: PremiumCard(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: AppColors.primaryAccent.withValues(alpha: 0.18),
+                                    child: Text(
+                                      student.name[0].toUpperCase(),
+                                      style: const TextStyle(fontFamily: 'Sora', fontWeight: FontWeight.w700, color: AppColors.primaryAccent),
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.md),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(student.name,
+                                            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary, fontSize: 14)),
+                                        Text('Room ${student.roomNumber}',
+                                            style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withValues(alpha: 0.16),
+                                      borderRadius: AppRadius.smBorder,
+                                    ),
+                                    child: Text(
+                                      student.rentStatus,
+                                      style: TextStyle(fontWeight: FontWeight.w700, color: statusColor, fontSize: 12),
+                                    ),
+                                  ),
                                 ],
-                                rows: students.map((student) {
-                          final isPaid = student.rentStatus == 'Paid';
-                          final rowColor = isPaid ? AppColors.paymentPaid.withOpacity(0.1) : AppColors.paymentPending.withOpacity(0.1);
-                          
-                          return DataRow(
-                            color: WidgetStateProperty.all(rowColor),
-                            cells: [
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryAccent.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('₹$amountDue',
+                                            style: const TextStyle(fontFamily: 'Sora', fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.textPrimary)),
+                                        if (ebShare > 0)
+                                          Text('₹${room?.price ?? 0} + ₹$ebShare EB',
+                                              style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                        if (!isPaid || student.paymentMode == '-')
+                                          const SizedBox.shrink()
+                                        else
+                                          Text('via ${student.paymentMode}',
+                                              style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                      ],
+                                    ),
                                   ),
-                                  child: Text(
-                                    student.roomNumber.toString(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
+                                  if (!isPaid) ...[
+                                    CompactActionButton(
+                                      icon: Icons.check_circle_outline,
+                                      color: AppColors.successColor,
+                                      tooltip: 'Mark as Paid',
+                                      onPressed: () => _markAsPaid(student.id!, student.name, student.roomNumber),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    CompactActionButton(
+                                      icon: Icons.message_outlined,
                                       color: AppColors.primaryAccent,
+                                      tooltip: 'Send Reminder',
+                                      onPressed: () => _sendReminder(student.contact, student.name, student.roomNumber, amountDue),
                                     ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(Text(student.name)),
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: isPaid ? AppColors.paymentPaid : AppColors.paymentPending,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    student.rentStatus,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                  ] else ...[
+                                    CompactActionButton(
+                                      icon: Icons.undo_rounded,
+                                      color: AppColors.errorColor,
+                                      tooltip: 'Revert to Pending',
+                                      onPressed: () => _revertToPending(student.id!, student.name),
                                     ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(Text(student.paymentMode)),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (!isPaid) ...[
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.check_circle,
-                                          color: AppColors.successColor,
-                                        ),
-                                        onPressed: () => _markAsPaid(
-                                          student.id!,
-                                          student.name,
-                                          student.roomNumber,
-                                        ),
-                                        tooltip: 'Mark as Paid',
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.message,
-                                          color: AppColors.primaryAccent,
-                                        ),
-                                        onPressed: () => _sendReminder(
-                                          student.contact,
-                                          student.name,
-                                          student.roomNumber,
-                                        ),
-                                        tooltip: 'Send Reminder',
-                                      ),
-                                    ] else ...[
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.check_circle,
-                                          color: AppColors.successColor,
-                                        ),
-                                        onPressed: () => _revertToPending(
-                                          student.id!,
-                                          student.name,
-                                        ),
-                                        tooltip: 'Revert to Pending',
-                                      ),
-                                      const SizedBox(width: 8),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.image,
-                                          color: AppColors.primaryAccent,
-                                        ),
-                                        onPressed: () =>
-                                            _viewCurrentMonthScreenshot(
-                                          student.id!,
-                                        ),
-                                        tooltip:
-                                            'View screenshot for this month',
-                                      ),
-                                    ],
+                                    const SizedBox(width: 8),
+                                    CompactActionButton(
+                                      icon: Icons.image_outlined,
+                                      color: AppColors.primaryAccent,
+                                      tooltip: 'View screenshot for this month',
+                                      onPressed: () => _viewCurrentMonthScreenshot(student.id!),
+                                    ),
                                   ],
-                                ),
+                                ],
                               ),
                             ],
-                                );
-                              }).toList(),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   );
                 },
               ),

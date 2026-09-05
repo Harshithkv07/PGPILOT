@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../logic/providers/room_provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
 
 class PriceManagerDialog extends StatefulWidget {
   const PriceManagerDialog({super.key});
@@ -85,8 +86,7 @@ class _PriceManagerDialogState extends State<PriceManagerDialog> {
       return;
     }
 
-    await Provider.of<RoomProvider>(context, listen: false)
-        .updatePriceByCapacity(_selectedCapacity!, newPrice);
+    await Provider.of<RoomProvider>(context, listen: false).updatePriceByCapacity(_selectedCapacity!, newPrice);
 
     if (mounted) {
       Navigator.pop(context);
@@ -108,39 +108,46 @@ class _PriceManagerDialogState extends State<PriceManagerDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Price Manager',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontFamily: 'Sora', fontSize: 19, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
             ),
-            const SizedBox(height: 24),
-            
-            // Rooms List
+            const SizedBox(height: AppSpacing.lg),
             Expanded(
               child: Consumer<RoomProvider>(
                 builder: (context, roomProvider, _) {
                   final rooms = roomProvider.rooms;
-                  
-                  return SingleChildScrollView(
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        AppColors.secondaryBackground,
-                      ),
-                      // We render our own checkbox column; disable DataTable's built-in one
-                      showCheckboxColumn: false,
-                      columns: const [
-                        DataColumn(label: Text('Select')),
-                        DataColumn(label: Text('Room No')),
-                        DataColumn(label: Text('Sharing')),
-                        DataColumn(label: Text('Current Price')),
-                      ],
-                      rows: rooms.map((room) {
-                        final isSelected =
-                            _selectedRoomNumbers.contains(room.roomNumber);
-                        return DataRow(
-                          cells: [
-                            DataCell(
+
+                  return ListView.separated(
+                    itemCount: rooms.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final room = rooms[index];
+                      final isSelected = _selectedRoomNumbers.contains(room.roomNumber);
+
+                      return InkWell(
+                        borderRadius: AppRadius.mdBorder,
+                        onTap: () {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedRoomNumbers.remove(room.roomNumber);
+                            } else {
+                              _selectedRoomNumbers.add(room.roomNumber);
+                              _selectedCapacity = room.capacity;
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primaryAccent.withValues(alpha: 0.1) : AppColors.cardBackground,
+                            borderRadius: AppRadius.mdBorder,
+                            border: Border.all(
+                              color: isSelected ? AppColors.primaryAccent.withValues(alpha: 0.5) : AppColors.borderColorSubtle,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
                               Checkbox(
                                 value: isSelected,
                                 onChanged: (value) {
@@ -154,21 +161,24 @@ class _PriceManagerDialogState extends State<PriceManagerDialog> {
                                   });
                                 },
                               ),
-                            ),
-                            DataCell(Text(room.roomNumber.toString())),
-                            DataCell(Text('${room.capacity}-Sharing')),
-                            DataCell(Text('₹${room.price}')),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+                              Expanded(
+                                child: Text('Room ${room.roomNumber}',
+                                    style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                              ),
+                              Text('${room.capacity}-Sharing', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                              const SizedBox(width: 16),
+                              Text('₹${room.price}',
+                                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryAccent)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
             ),
-            const SizedBox(height: 24),
-            
-            // New Price Input
+            const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _priceController,
               decoration: const InputDecoration(
@@ -177,35 +187,25 @@ class _PriceManagerDialogState extends State<PriceManagerDialog> {
               ),
               keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 24),
-            
-            // Action Buttons
-            Row(
+            const SizedBox(height: AppSpacing.lg),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _updateSingleRoom,
-                    icon: const Icon(Icons.check),
-                    label: const Text('Update Selected'),
-                  ),
+                ElevatedButton.icon(
+                  onPressed: _updateSingleRoom,
+                  icon: const Icon(Icons.check),
+                  label: const Text('Update Selected'),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _updateByCapacity,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.secondaryAccent,
-                    ),
-                    icon: const Icon(Icons.done_all),
-                    label: const Text('Update All (Same Sharing)'),
-                  ),
+                ElevatedButton.icon(
+                  onPressed: _updateByCapacity,
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentHighlight, foregroundColor: Colors.black),
+                  icon: const Icon(Icons.done_all),
+                  label: const Text('Update All (Same Sharing)'),
                 ),
               ],
             ),

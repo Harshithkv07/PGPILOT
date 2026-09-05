@@ -26,9 +26,11 @@ class ExcelService {
       TextCellValue('Hometown'),
       TextCellValue('Address'),
       TextCellValue('Advance Amount'),
-      TextCellValue('Agreement'),
+      TextCellValue('Aadhar Card'),
+      TextCellValue('Student Picture'),
       TextCellValue('Room Capacity'),
       TextCellValue('Room Price'),
+      TextCellValue('EB Bill'),
       TextCellValue('Rent Status'),
       TextCellValue('Payment Mode'),
     ]);
@@ -49,9 +51,11 @@ class ExcelService {
         TextCellValue(student.hometown),
         TextCellValue(student.address),
         TextCellValue(student.advanceAmount),
-        TextCellValue(student.agreementSubmitted),
+        TextCellValue(student.aadharName != null ? 'Attached' : 'Pending'),
+        TextCellValue(student.studentPictureName != null ? 'Attached' : 'Pending'),
         IntCellValue(room?.capacity ?? 0),
         IntCellValue(room?.price ?? 0),
+        IntCellValue(room?.ebBill ?? 0),
         TextCellValue(student.rentStatus),
         TextCellValue(student.paymentMode),
       ]);
@@ -63,11 +67,11 @@ class ExcelService {
       if (Platform.isAndroid) {
         final downloadDir = Directory('/storage/emulated/0/Download');
         if (await downloadDir.exists()) {
-          baseDir = Directory('${downloadDir.path}/PGHacked');
+          baseDir = Directory('${downloadDir.path}/PGPilot');
         } else {
           final extDir = await getExternalStorageDirectory();
           if (extDir != null) {
-            baseDir = Directory('${extDir.path}/PGHacked');
+            baseDir = Directory('${extDir.path}/PGPilot');
           }
         }
       }
@@ -77,7 +81,7 @@ class ExcelService {
 
     if (baseDir == null) {
       final appDir = await getApplicationDocumentsDirectory();
-      baseDir = Directory('${appDir.path}/PGHacked');
+      baseDir = Directory('${appDir.path}/PGPilot');
     }
 
     if (!await baseDir.exists()) {

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
 import '../../logic/providers/accounts_provider.dart';
 import '../../data/models/daily_account_model.dart';
 import '../../data/database/accounts_repository.dart';
+import 'common/empty_state.dart';
 
 class MonthlyOverviewScreen extends StatefulWidget {
   const MonthlyOverviewScreen({super.key});
@@ -109,8 +111,9 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
                 Text(
                   monthLabel,
                   style: const TextStyle(
+                    fontFamily: 'Sora',
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -128,19 +131,7 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _days.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.calendar_today,
-                                size: 48, color: AppColors.textMuted),
-                            const SizedBox(height: 12),
-                            const Text('No days to show',
-                                style:
-                                    TextStyle(color: AppColors.textMuted)),
-                          ],
-                        ),
-                      )
+                    ? const EmptyState(icon: Icons.calendar_today, title: 'No days to show')
                     : Padding(
                         padding: const EdgeInsets.all(10),
                         child: GridView.builder(
@@ -167,11 +158,12 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
 
     return InkWell(
       onTap: () => _onDayTapped(day),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: AppRadius.mdBorder,
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppRadius.mdBorder,
+          border: Border.all(color: AppColors.borderColorSubtle),
         ),
         padding: const EdgeInsets.all(6),
         child: Column(

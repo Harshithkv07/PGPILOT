@@ -22,6 +22,7 @@ class RoomProvider with ChangeNotifier {
     return _rooms;
   }
   
+  List<RoomConfigModel> get allRooms => _rooms;
   Map<int, int> get occupancyMap => _occupancyMap;
   bool get isLoading => _isLoading;
   String get currentFilter => _filter;
@@ -111,6 +112,18 @@ class RoomProvider with ChangeNotifier {
   // Update price for all rooms with specific capacity
   Future<void> updatePriceByCapacity(int capacity, int newPrice) async {
     await _roomRepo.updatePriceByCapacity(capacity, newPrice);
+    await loadRooms();
+  }
+
+  // Update room EB bill
+  Future<void> updateEbBill(int roomNumber, int newEbBill) async {
+    await _roomRepo.updateEbBill(roomNumber, newEbBill);
+    await loadRooms();
+  }
+
+  // Reset all EB bills
+  Future<void> resetAllEbBills() async {
+    await _roomRepo.resetAllEbBills();
     await loadRooms();
   }
 

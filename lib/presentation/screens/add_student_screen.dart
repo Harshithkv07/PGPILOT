@@ -1,13 +1,21 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../data/models/student_model.dart';
 import '../../logic/providers/student_provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
 import '../../core/utils/validators.dart';
 import '../../core/utils/whatsapp_helper.dart';
 import '../../logic/providers/room_provider.dart';
 import '../../logic/providers/rent_provider.dart';
+import '../../data/services/file_storage_service.dart';
+import '../widgets/common/section_header.dart';
+import '../widgets/common/attachment_picker.dart';
+import '../widgets/common/premium_button.dart';
 
 class AddStudentScreen extends StatefulWidget {
   const AddStudentScreen({super.key});
@@ -18,8 +26,7 @@ class AddStudentScreen extends StatefulWidget {
 
 class _AddStudentScreenState extends State<AddStudentScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  // Controllers for all fields
+
   final _nameController = TextEditingController();
   final _dobController = TextEditingController();
   final _contactController = TextEditingController();
@@ -32,8 +39,68 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   final _addressController = TextEditingController();
   final _roomNumberController = TextEditingController();
   final _advanceAmountController = TextEditingController();
-  
-  String _agreementSubmitted = 'No';
+
+  String? _aadharFilePath;
+  String? _aadharFileName;
+
+  String? _studentPictureFilePath;
+  String? _studentPictureFileName;
+
+  bool _isSaving = false;
+
+  final FileStorageService _fileStorageService = FileStorageService();
+
+  Future<void> _pickAadharCard() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _aadharFilePath = result.files.single.path;
+          _aadharFileName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking Aadhar card: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking file: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickStudentPicture() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _studentPictureFilePath = result.files.single.path;
+          _studentPictureFileName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking student picture: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking file: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -55,7 +122,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 6570)), // ~18 years ago
+      initialDate: DateTime.now().subtract(const Duration(days: 6570)),
       firstDate: DateTime(1950),
       lastDate: DateTime.now(),
       builder: (context, child) {
@@ -70,7 +137,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         );
       },
     );
-    
+
     if (picked != null) {
       setState(() {
         _dobController.text = DateFormat('dd/MM/yyyy').format(picked);
@@ -93,87 +160,150 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     _roomNumberController.clear();
     _advanceAmountController.clear();
     setState(() {
-      _agreementSubmitted = 'No';
+      _aadharFilePath = null;
+      _aadharFileName = null;
+      _studentPictureFilePath = null;
+      _studentPictureFileName = null;
     });
   }
 
   Future<void> _saveStudent() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final student = StudentModel(
-      roomNumber: int.parse(_roomNumberController.text),
-      name: _nameController.text.trim(),
-      dob: _dobController.text.trim(),
-      contact: _contactController.text.trim(),
-      fatherName: _fatherNameController.text.trim(),
-      fatherNumber: _fatherNumberController.text.trim(),
-      motherName: _motherNameController.text.trim(),
-      motherNumber: _motherNumberController.text.trim(),
-      college: _collegeController.text.trim(),
-      hometown: _hometownController.text.trim(),
-      address: _addressController.text.trim(),
-      advanceAmount: _advanceAmountController.text.trim(),
-      agreementSubmitted: _agreementSubmitted,
-    );
+    setState(() => _isSaving = true);
 
-    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-    final success = await studentProvider.addStudent(student);
+    try {
+      String? savedAadharName;
+      String? aadharBase64;
 
-    if (!mounted) return;
-
-    if (success) {
-      // Sync changes with dashboard and rent modules
-      Provider.of<RoomProvider>(context, listen: false).loadRooms();
-      Provider.of<RentProvider>(context, listen: false).loadStudents();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Student added successfully!'),
-          backgroundColor: AppColors.successColor,
-        ),
-      );
-
-      // Ask if user wants to send welcome message
-      final sendMessage = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Send Welcome Message?'),
-          content: const Text('Do you want to send a WhatsApp welcome message to the student?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('No'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Yes'),
-            ),
-          ],
-        ),
-      );
-
-      if (sendMessage == true) {
-        await WhatsAppHelper.sendWelcomeMessage(
-          student.contact,
-          student.name,
-          student.roomNumber,
+      if (_aadharFilePath != null) {
+        final roomNo = int.parse(_roomNumberController.text);
+        final studentName = _nameController.text.trim();
+        final savedFileMap = await _fileStorageService.saveAadharCard(
+          sourcePath: _aadharFilePath!,
+          studentName: studentName,
+          roomNumber: roomNo,
         );
+        savedAadharName = savedFileMap['name'];
+
+        final bytes = await File(_aadharFilePath!).readAsBytes();
+        aadharBase64 = base64Encode(bytes);
       }
 
-      _clearForm();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Room is full! Cannot add more students.'),
-          backgroundColor: AppColors.errorColor,
-        ),
+      String? savedStudentPictureName;
+      String? studentPictureBase64;
+
+      if (_studentPictureFilePath != null) {
+        final roomNo = int.parse(_roomNumberController.text);
+        final studentName = _nameController.text.trim();
+        final savedFileMap = await _fileStorageService.saveStudentPicture(
+          sourcePath: _studentPictureFilePath!,
+          studentName: studentName,
+          roomNumber: roomNo,
+        );
+        savedStudentPictureName = savedFileMap['name'];
+
+        final bytes = await File(_studentPictureFilePath!).readAsBytes();
+        studentPictureBase64 = base64Encode(bytes);
+      }
+
+      final student = StudentModel(
+        roomNumber: int.parse(_roomNumberController.text),
+        name: _nameController.text.trim(),
+        dob: _dobController.text.trim(),
+        contact: _contactController.text.trim(),
+        fatherName: _fatherNameController.text.trim(),
+        fatherNumber: _fatherNumberController.text.trim(),
+        motherName: _motherNameController.text.trim(),
+        motherNumber: _motherNumberController.text.trim(),
+        college: _collegeController.text.trim(),
+        hometown: _hometownController.text.trim(),
+        address: _addressController.text.trim(),
+        advanceAmount: _advanceAmountController.text.trim(),
+        aadharCard: aadharBase64,
+        aadharName: savedAadharName,
+        studentPicture: studentPictureBase64,
+        studentPictureName: savedStudentPictureName,
       );
+
+      if (!mounted) return;
+      final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+      final success = await studentProvider.addStudent(student);
+
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+
+      if (success) {
+        Provider.of<RoomProvider>(context, listen: false).loadRooms();
+        Provider.of<RentProvider>(context, listen: false).loadStudents();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Student added successfully!'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
+
+        final sendMessage = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Send Welcome Message?'),
+            content: const Text('Do you want to send a WhatsApp welcome message to the student?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('No'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Yes'),
+              ),
+            ],
+          ),
+        );
+
+        if (sendMessage == true) {
+          await WhatsAppHelper.sendWelcomeMessage(
+            student.contact,
+            student.name,
+            student.roomNumber,
+          );
+        }
+
+        _clearForm();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot add you to that room because capacity is reached.'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving student: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Add New Student'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -181,7 +311,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Two-column layout for desktop/tablet
               LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth > 800) {
@@ -204,17 +333,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                   }
                 },
               ),
-              const SizedBox(height: 32),
-              
-              // Save button
+              const SizedBox(height: AppSpacing.xxl),
               Center(
                 child: SizedBox(
                   width: 300,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _saveStudent,
-                    icon: const Icon(Icons.save),
-                    label: const Text('SAVE STUDENT'),
+                  child: PremiumButton(
+                    label: 'SAVE STUDENT',
+                    icon: Icons.save,
+                    loading: _isSaving,
+                    onPressed: _isSaving ? null : _saveStudent,
                   ),
                 ),
               ),
@@ -232,15 +359,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Personal & Family Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppColors.primaryAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const SectionHeader(title: 'Personal & Family Details', icon: Icons.badge_outlined),
             const SizedBox(height: 20),
-            
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -250,7 +370,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateRequired(value, 'Student name'),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _dobController,
               decoration: const InputDecoration(
@@ -262,7 +381,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: Validators.validateDate,
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _contactController,
               decoration: const InputDecoration(
@@ -273,7 +391,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: Validators.validatePhone,
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _fatherNameController,
               decoration: const InputDecoration(
@@ -283,7 +400,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateRequired(value, "Father's name"),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _fatherNumberController,
               decoration: const InputDecoration(
@@ -294,7 +410,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: Validators.validatePhone,
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _motherNameController,
               decoration: const InputDecoration(
@@ -304,7 +419,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateRequired(value, "Mother's name"),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _motherNumberController,
               decoration: const InputDecoration(
@@ -327,15 +441,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Academic & PG Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppColors.primaryAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const SectionHeader(title: 'Academic & PG Details', icon: Icons.school_outlined),
             const SizedBox(height: 20),
-            
             TextFormField(
               controller: _collegeController,
               decoration: const InputDecoration(
@@ -345,7 +452,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateRequired(value, 'College/Workplace'),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _hometownController,
               decoration: const InputDecoration(
@@ -355,7 +461,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateRequired(value, 'Hometown'),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _addressController,
               decoration: const InputDecoration(
@@ -366,7 +471,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateRequired(value, 'Address'),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _roomNumberController,
               decoration: const InputDecoration(
@@ -377,7 +481,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               validator: (value) => Validators.validateNumber(value, 'Room number'),
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _advanceAmountController,
               decoration: const InputDecoration(
@@ -387,25 +490,33 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               keyboardType: TextInputType.number,
               validator: (value) => Validators.validateRequired(value, 'Advance amount'),
             ),
-            const SizedBox(height: 16),
-            
-            DropdownButtonFormField<String>(
-              value: _agreementSubmitted,
-              decoration: const InputDecoration(
-                labelText: 'Agreement Submitted? *',
-                prefixIcon: Icon(Icons.description),
-              ),
-              items: ['Yes', 'No'].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _agreementSubmitted = newValue!;
-                });
-              },
+            const SizedBox(height: AppSpacing.lg),
+
+            const SectionHeader(title: 'Aadhar Card Attachment'),
+            const SizedBox(height: AppSpacing.sm),
+            AttachmentPicker(
+              label: 'ATTACH AADHAR CARD (PDF / IMAGE)',
+              fileName: _aadharFileName,
+              onPick: _pickAadharCard,
+              onClear: () => setState(() {
+                _aadharFilePath = null;
+                _aadharFileName = null;
+              }),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            const SectionHeader(title: 'Student Picture Attachment'),
+            const SizedBox(height: AppSpacing.sm),
+            AttachmentPicker(
+              label: 'ATTACH STUDENT PICTURE (IMAGE ONLY)',
+              fileName: _studentPictureFileName,
+              fileIcon: Icons.image,
+              pickIcon: Icons.add_a_photo,
+              onPick: _pickStudentPicture,
+              onClear: () => setState(() {
+                _studentPictureFilePath = null;
+                _studentPictureFileName = null;
+              }),
             ),
           ],
         ),

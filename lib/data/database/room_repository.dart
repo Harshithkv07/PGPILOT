@@ -57,6 +57,26 @@ class RoomRepository {
     );
   }
 
+  // Update room EB Bill
+  Future<int> updateEbBill(int roomNumber, int newEbBill) async {
+    final db = await _dbHelper.database;
+    return await db.update(
+      'rooms',
+      {'eb_bill': newEbBill},
+      where: 'room_number = ?',
+      whereArgs: [roomNumber],
+    );
+  }
+
+  // Reset all EB Bills to 0
+  Future<int> resetAllEbBills() async {
+    final db = await _dbHelper.database;
+    return await db.update(
+      'rooms',
+      {'eb_bill': 0},
+    );
+  }
+
   // Insert a new room
   Future<int> insertRoom(RoomConfigModel room) async {
     final db = await _dbHelper.database;

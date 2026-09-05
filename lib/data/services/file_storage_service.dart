@@ -13,11 +13,11 @@ class FileStorageService {
       if (Platform.isAndroid) {
         final downloadDir = Directory('/storage/emulated/0/Download');
         if (await downloadDir.exists()) {
-          baseDir = Directory(path.join(downloadDir.path, 'PGHacked', 'Screenshots'));
+          baseDir = Directory(path.join(downloadDir.path, 'PGPilot', 'Screenshots'));
         } else {
           final extDir = await getExternalStorageDirectory();
           if (extDir != null) {
-            baseDir = Directory(path.join(extDir.path, 'PGHacked', 'Screenshots'));
+            baseDir = Directory(path.join(extDir.path, 'PGPilot', 'Screenshots'));
           }
         }
       }
@@ -28,7 +28,7 @@ class FileStorageService {
     // Fallback for iOS, Windows, or if above checks failed/threw
     if (baseDir == null) {
       final appDir = await getApplicationDocumentsDirectory();
-      baseDir = Directory(path.join(appDir.path, 'PGHacked', 'Screenshots'));
+      baseDir = Directory(path.join(appDir.path, 'PGPilot', 'Screenshots'));
     }
     
     if (!await baseDir.exists()) {
@@ -142,6 +142,166 @@ class FileStorageService {
     } catch (e) {
       print('Error getting month screenshots: $e');
       return [];
+    }
+  }
+
+  // Get the base directory for Aadhar Cards
+  Future<Directory> _getAadharDirectory() async {
+    Directory? baseDir;
+    try {
+      if (Platform.isAndroid) {
+        final downloadDir = Directory('/storage/emulated/0/Download');
+        if (await downloadDir.exists()) {
+          baseDir = Directory(path.join(downloadDir.path, 'PGPilot', 'AadharCards'));
+        } else {
+          final extDir = await getExternalStorageDirectory();
+          if (extDir != null) {
+            baseDir = Directory(path.join(extDir.path, 'PGPilot', 'AadharCards'));
+          }
+        }
+      }
+    } catch (e) {
+      print('Error accessing external storage path: $e');
+    }
+    
+    if (baseDir == null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      baseDir = Directory(path.join(appDir.path, 'PGPilot', 'AadharCards'));
+    }
+    
+    if (!await baseDir.exists()) {
+      await baseDir.create(recursive: true);
+    }
+    
+    return baseDir;
+  }
+
+  // Save Aadhar Card
+  Future<Map<String, String>> saveAadharCard({
+    required String sourcePath,
+    required String studentName,
+    required int roomNumber,
+  }) async {
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) {
+        throw Exception('Source file does not exist');
+      }
+
+      final aadharDir = await _getAadharDirectory();
+      
+      final extension = path.extension(sourcePath);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final sanitizedName = studentName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
+      final filename = '${sanitizedName}_room${roomNumber}_$timestamp$extension';
+      
+      final targetPath = path.join(aadharDir.path, filename);
+      await sourceFile.copy(targetPath);
+      
+      return {
+        'path': targetPath,
+        'name': filename,
+      };
+    } catch (e) {
+      print('Error saving Aadhar card: $e');
+      rethrow;
+    }
+  }
+
+  // Get the base directory for Student Pictures
+  Future<Directory> _getStudentPicturesDirectory() async {
+    Directory? baseDir;
+    try {
+      if (Platform.isAndroid) {
+        final downloadDir = Directory('/storage/emulated/0/Download');
+        if (await downloadDir.exists()) {
+          baseDir = Directory(path.join(downloadDir.path, 'PGPilot', 'StudentPictures'));
+        } else {
+          final extDir = await getExternalStorageDirectory();
+          if (extDir != null) {
+            baseDir = Directory(path.join(extDir.path, 'PGPilot', 'StudentPictures'));
+          }
+        }
+      }
+    } catch (e) {
+      print('Error accessing external storage path: $e');
+    }
+    
+    if (baseDir == null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      baseDir = Directory(path.join(appDir.path, 'PGPilot', 'StudentPictures'));
+    }
+    
+    if (!await baseDir.exists()) {
+      await baseDir.create(recursive: true);
+    }
+    
+    return baseDir;
+  }
+
+  // Save Student Picture
+  Future<Map<String, String>> saveStudentPicture({
+    required String sourcePath,
+    required String studentName,
+    required int roomNumber,
+  }) async {
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) {
+        throw Exception('Source file does not exist');
+      }
+
+      final picturesDir = await _getStudentPicturesDirectory();
+      
+      final extension = path.extension(sourcePath);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final sanitizedName = studentName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
+      final filename = '${sanitizedName}_room${roomNumber}_$timestamp$extension';
+      
+      final targetPath = path.join(picturesDir.path, filename);
+      await sourceFile.copy(targetPath);
+      
+      return {
+        'path': targetPath,
+        'name': filename,
+      };
+    } catch (e) {
+      print('Error saving student picture: $e');
+      rethrow;
+    }
+  }
+
+  // Delete generic file
+  Future<void> deleteFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      print('Error deleting file: $e');
+    }
+  }
+
+  // Delete Aadhar Card
+  Future<void> deleteAadharCard(String filename) async {
+    try {
+      final aadharDir = await _getAadharDirectory();
+      final targetPath = path.join(aadharDir.path, filename);
+      await deleteFile(targetPath);
+    } catch (e) {
+      print('Error deleting Aadhar card: $e');
+    }
+  }
+
+  // Delete Student Picture
+  Future<void> deleteStudentPicture(String filename) async {
+    try {
+      final picturesDir = await _getStudentPicturesDirectory();
+      final targetPath = path.join(picturesDir.path, filename);
+      await deleteFile(targetPath);
+    } catch (e) {
+      print('Error deleting student picture: $e');
     }
   }
 }

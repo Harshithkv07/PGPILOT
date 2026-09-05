@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import '../../data/models/room_config_model.dart';
 import '../../data/models/student_model.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
 import '../../core/utils/whatsapp_helper.dart';
+import 'common/premium_card.dart';
+import 'common/stat_chip.dart';
+import 'common/empty_state.dart';
 
 class RoomDetailsDialog extends StatelessWidget {
   final RoomConfigModel room;
@@ -27,37 +31,28 @@ class RoomDetailsDialog extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryAccent.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.primaryAccent.withValues(alpha: 0.2),
+                    borderRadius: AppRadius.mdBorder,
                   ),
-                  child: const Icon(
-                    Icons.meeting_room,
-                    size: 32,
-                    color: AppColors.primaryAccent,
-                  ),
+                  child: const Icon(Icons.meeting_room, size: 32, color: AppColors.primaryAccent),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: AppSpacing.lg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Room ${room.roomNumber}',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: const TextStyle(fontFamily: 'Sora', fontSize: 19, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                       ),
                       Text(
                         '${room.capacity}-Sharing • ₹${room.price}/month',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                        ),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     ],
                   ),
@@ -68,86 +63,68 @@ class RoomDetailsDialog extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            
-            // Occupancy Info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.secondaryBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
+            const SizedBox(height: AppSpacing.xl),
+            PremiumCard(
+              color: AppColors.secondaryBackground,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _InfoItem(
-                    label: 'Capacity',
-                    value: room.capacity.toString(),
-                    color: AppColors.primaryAccent,
-                  ),
-                  _InfoItem(
-                    label: 'Occupied',
-                    value: occupancy.toString(),
-                    color: AppColors.roomPartial,
-                  ),
-                  _InfoItem(
+                  StatChip(icon: Icons.bed, label: 'Capacity', value: room.capacity, color: AppColors.primaryAccent, compact: true),
+                  StatChip(icon: Icons.people, label: 'Occupied', value: occupancy, color: AppColors.roomPartial, compact: true),
+                  StatChip(
+                    icon: Icons.hotel,
                     label: 'Available',
-                    value: available.toString(),
+                    value: available,
                     color: available > 0 ? AppColors.roomEmpty : AppColors.roomFull,
+                    compact: true,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            
-            // Occupants List
-            Text(
+            const SizedBox(height: AppSpacing.xl),
+            const Text(
               'Current Occupants',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontFamily: 'Sora', fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
             ),
-            const SizedBox(height: 12),
-            
+            const SizedBox(height: AppSpacing.md),
             Expanded(
               child: students.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No students in this room',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    )
+                  ? const EmptyState(icon: Icons.person_off_outlined, title: 'No students in this room')
                   : ListView.builder(
                       itemCount: students.length,
                       itemBuilder: (context, index) {
                         final student = students[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.primaryAccent.withOpacity(0.2),
-                              child: Text(
-                                student.name[0].toUpperCase(),
-                                style: const TextStyle(
-                                  color: AppColors.primaryAccent,
-                                  fontWeight: FontWeight.bold,
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: PremiumCard(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: AppColors.primaryAccent.withValues(alpha: 0.2),
+                                  child: Text(
+                                    student.name[0].toUpperCase(),
+                                    style: const TextStyle(color: AppColors.primaryAccent, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            title: Text(student.name),
-                            subtitle: Text(student.contact),
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.message,
-                                color: AppColors.primaryAccent,
-                              ),
-                              onPressed: () {
-                                WhatsAppHelper.sendCustomMessage(
-                                  student.contact,
-                                  'Hello ${student.name}!',
-                                );
-                              },
-                              tooltip: 'Send WhatsApp Message',
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(student.name, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                      Text(student.contact, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.message, color: AppColors.primaryAccent),
+                                  onPressed: () {
+                                    WhatsAppHelper.sendCustomMessage(student.contact, 'Hello ${student.name}!');
+                                  },
+                                  tooltip: 'Send WhatsApp Message',
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -157,41 +134,6 @@ class RoomDetailsDialog extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _InfoItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _InfoItem({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
+import '../../core/constants/app_strings.dart';
 import '../../logic/providers/auth_provider.dart';
 import '../../logic/providers/rent_provider.dart';
 import '../../logic/providers/room_provider.dart';
@@ -13,22 +16,25 @@ import 'dashboard_screen.dart';
 import 'students_list_screen.dart';
 import 'rent_screen.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
+import '../widgets/common/premium_bottom_nav.dart';
 import '../widgets/monthly_summary_sheet.dart';
 import '../widgets/monthly_overview_sheet.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int initialIndex;
+  final bool showSummarySheet;
+  const MainScreen({super.key, this.initialIndex = 0, this.showSummarySheet = false});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
   final List<Widget> _screens = [
     const AccountsScreen(),
-    const AddStudentScreen(),
     const DashboardScreen(),
     const StudentsListScreen(),
     const RentScreen(),
@@ -36,7 +42,6 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<String> _titles = [
     'Accounts',
-    'Add New Student',
     'Room Dashboard',
     'Students List',
     'Rent Management',
@@ -45,6 +50,23 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    if (widget.showSummarySheet) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            maxChildSize: 0.9,
+            minChildSize: 0.4,
+            builder: (_, scrollController) =>
+                const MonthlySummarySheet(),
+          ),
+        );
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initCalendarAndMonth();
     });
@@ -74,9 +96,47 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_currentIndex]),
+    return KeyboardListener(
+      focusNode: FocusNode()..requestFocus(),
+      onKeyEvent: (KeyEvent event) {
+        if (event is KeyDownEvent) {
+          final keyMap = {
+            LogicalKeyboardKey.digit1: 0,
+            LogicalKeyboardKey.digit2: 1,
+            LogicalKeyboardKey.digit3: 2,
+            LogicalKeyboardKey.digit4: 3,
+            LogicalKeyboardKey.digit5: 4,
+          };
+          if (keyMap.containsKey(event.logicalKey)) {
+            setState(() {
+              _currentIndex = keyMap[event.logicalKey]!;
+            });
+          } else if (event.logicalKey == LogicalKeyboardKey.keyO) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const MonthlyOverviewScreen(),
+              ),
+            );
+          } else if (event.logicalKey == LogicalKeyboardKey.keyS) {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => DraggableScrollableSheet(
+                initialChildSize: 0.7,
+                maxChildSize: 0.9,
+                minChildSize: 0.4,
+                builder: (_, scrollController) =>
+                    const MonthlySummarySheet(),
+              ),
+            );
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_titles[_currentIndex]),
         actions: [
           // Show overview & summary buttons when on Accounts tab
           if (_currentIndex == 0) ...[
@@ -111,32 +171,49 @@ class _MainScreenState extends State<MainScreen> {
               },
             ),
           ],
+          if (_currentIndex == 2) ...[
+            IconButton(
+              icon: const Icon(Icons.person_add),
+              tooltip: 'Add New Student',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddStudentScreen()),
+                );
+              },
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: 'About',
             onPressed: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'PGHacked',
+                applicationName: AppStrings.appName,
                 applicationVersion: '1.0.0',
                 applicationIcon: Container(
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        AppColors.primaryAccent,
-                        AppColors.secondaryAccent,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: AppColors.goldGradient,
+                    borderRadius: AppRadius.mdBorder,
                   ),
                   child: const Icon(
-                    Icons.home_work,
+                    Icons.home_work_rounded,
                     size: 36,
-                    color: Colors.white,
+                    color: Colors.black,
                   ),
                 ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings & Data',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
             },
           ),
@@ -147,8 +224,6 @@ class _MainScreenState extends State<MainScreen> {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  backgroundColor: AppColors.cardBackground,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   title: const Text('Logout'),
                   content: const Text('Are you sure you want to logout?'),
                   actions: [
@@ -181,36 +256,33 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
       body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: PremiumBottomNav(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet),
+        onTap: (index) => setState(() => _currentIndex = index),
+        destinations: const [
+          NavDestination(
+            icon: Icons.account_balance_wallet_outlined,
+            activeIcon: Icons.account_balance_wallet,
             label: 'Accounts',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_add),
-            label: 'Add Student',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
+          NavDestination(
+            icon: Icons.dashboard_outlined,
+            activeIcon: Icons.dashboard,
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
+          NavDestination(
+            icon: Icons.people_outline,
+            activeIcon: Icons.people,
             label: 'Students',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.payment),
+          NavDestination(
+            icon: Icons.payment_outlined,
+            activeIcon: Icons.payment,
             label: 'Rent',
           ),
         ],
       ),
+    ),
     );
   }
 }

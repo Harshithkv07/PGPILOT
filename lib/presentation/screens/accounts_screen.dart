@@ -1,10 +1,15 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_dimens.dart';
+import '../../core/constants/category_styles.dart';
 import '../../logic/providers/accounts_provider.dart';
 import '../../data/models/expense_model.dart';
-import '../widgets/monthly_summary_sheet.dart';
+import '../widgets/common/premium_card.dart';
+import '../widgets/common/empty_state.dart';
+import '../widgets/common/section_header.dart';
 
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
@@ -46,11 +51,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
       context: context,
       barrierDismissible: !isFirstTime,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.account_balance_wallet, color: AppColors.primaryAccent),
+            const Icon(Icons.account_balance_wallet, color: AppColors.primaryAccent),
             const SizedBox(width: 10),
             const Text('Opening Balance'),
           ],
@@ -65,18 +68,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
                   color: AppColors.secondaryBackground,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.mdBorder,
                   border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline,
-                        size: 18, color: AppColors.primaryAccent),
+                    const Icon(Icons.info_outline, size: 18, color: AppColors.primaryAccent),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Yesterday\'s closing: ₹${prevBalance.toStringAsFixed(2)}',
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
                   ],
@@ -84,8 +86,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               ),
             TextField(
               controller: controller,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: 'Enter Opening Balance',
@@ -126,8 +127,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   void _showAddExpenseDialog([ExpenseModel? existing]) {
     final provider = Provider.of<AccountsProvider>(context, listen: false);
-    final amountCtrl = TextEditingController(
-        text: existing?.amount.toStringAsFixed(2) ?? '');
+    final amountCtrl = TextEditingController(text: existing?.amount.toStringAsFixed(2) ?? '');
     final noteCtrl = TextEditingController(text: existing?.note ?? '');
     String selectedCategory = existing?.category ?? ExpenseModel.categories[0];
 
@@ -135,15 +135,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(
-                existing == null ? Icons.add_circle : Icons.edit,
-                color: AppColors.goldAccent,
-              ),
+              Icon(existing == null ? Icons.add_circle : Icons.edit, color: AppColors.goldAccent),
               const SizedBox(width: 10),
               Text(existing == null ? 'Add Expense' : 'Edit Expense'),
             ],
@@ -154,17 +148,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
               children: [
                 TextField(
                   controller: amountCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount',
-                    prefixText: '₹ ',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedCategory,
+                  initialValue: selectedCategory,
                   decoration: const InputDecoration(labelText: 'Category'),
                   dropdownColor: AppColors.cardBackground,
                   items: ExpenseModel.categories
@@ -172,9 +162,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             value: c,
                             child: Row(
                               children: [
-                                Icon(_categoryIcon(c),
-                                    size: 20,
-                                    color: _categoryColor(c)),
+                                Icon(CategoryStyles.icon(c), size: 20, color: CategoryStyles.color(c)),
                                 const SizedBox(width: 8),
                                 Text(c),
                               ],
@@ -215,8 +203,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       note: noteCtrl.text.trim(),
                     ));
                   } else {
-                    provider.addExpense(
-                        amt, selectedCategory, noteCtrl.text.trim());
+                    provider.addExpense(amt, selectedCategory, noteCtrl.text.trim());
                   }
                   Navigator.pop(ctx);
                 }
@@ -236,8 +223,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             const Icon(Icons.lock_clock, color: AppColors.goldAccent),
@@ -248,35 +233,30 @@ class _AccountsScreenState extends State<AccountsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _summaryRow('Opening Balance',
-                '₹${provider.todayAccount!.openingBalance.toStringAsFixed(2)}'),
-            _summaryRow('Total Expenses',
-                '- ₹${provider.totalExpensesToday.toStringAsFixed(2)}',
-                color: AppColors.errorColor),
+            _summaryRow('Opening Balance', '₹${provider.todayAccount!.openingBalance.toStringAsFixed(2)}'),
+            _summaryRow('Total Expenses', '- ₹${provider.totalExpensesToday.toStringAsFixed(2)}', color: AppColors.errorColor),
             const Divider(color: AppColors.borderColor),
-            _summaryRow('Closing Balance',
-                '₹${provider.remainingBalance.toStringAsFixed(2)}',
-                color: provider.remainingBalance >= 0
-                    ? AppColors.successColor
-                    : AppColors.errorColor,
-                bold: true),
+            _summaryRow(
+              'Closing Balance',
+              '₹${provider.remainingBalance.toStringAsFixed(2)}',
+              color: provider.remainingBalance >= 0 ? AppColors.successColor : AppColors.errorColor,
+              bold: true,
+            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: AppColors.goldAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.smBorder,
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded,
-                      color: AppColors.goldAccent, size: 18),
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.goldAccent, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'This closing balance will be suggested as tomorrow\'s opening balance.',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ),
                 ],
@@ -290,8 +270,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.goldAccent),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.goldAccent, foregroundColor: Colors.black),
             onPressed: () {
               provider.closeDay();
               Navigator.pop(ctx);
@@ -303,14 +282,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Widget _summaryRow(String label, String value,
-      {Color? color, bool bold = false}) {
+  Widget _summaryRow(String label, String value, {Color? color, bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: AppColors.textSecondary)),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
           Text(
             value,
             style: TextStyle(
@@ -334,9 +312,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
         return Column(
           children: [
-            // ─── Date Navigation Bar ───
             _buildDateNavBar(provider),
-            // ─── Main Content ───
             Expanded(
               child: provider.todayAccount == null
                   ? _buildNoAccountView(provider)
@@ -354,15 +330,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.secondaryBackground,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border(bottom: BorderSide(color: AppColors.borderColorSubtle)),
       ),
       child: Row(
         children: [
@@ -375,44 +345,30 @@ class _AccountsScreenState extends State<AccountsScreen> {
               children: [
                 Text(
                   dateStr,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                   textAlign: TextAlign.center,
                 ),
                 if (isToday)
                   Container(
                     margin: const EdgeInsets.only(top: 4),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.primaryAccent.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: AppRadius.smBorder,
                     ),
                     child: const Text(
                       'TODAY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryAccent,
-                        letterSpacing: 1,
-                      ),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryAccent, letterSpacing: 1),
                     ),
                   ),
               ],
             ),
           ),
           IconButton(
-            onPressed: provider.canGoToNextDay
-                ? () => provider.goToNextDay()
-                : null,
+            onPressed: provider.canGoToNextDay ? () => provider.goToNextDay() : null,
             icon: Icon(
               Icons.chevron_right,
-              color: provider.canGoToNextDay
-                  ? AppColors.primaryAccent
-                  : AppColors.textMuted,
+              color: provider.canGoToNextDay ? AppColors.primaryAccent : AppColors.textMuted,
             ),
           ),
         ],
@@ -421,38 +377,16 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   Widget _buildNoAccountView(AccountsProvider provider) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.account_balance_wallet_outlined,
-                size: 80, color: AppColors.textMuted),
-            const SizedBox(height: 20),
-            Text(
-              provider.isToday
-                  ? 'No account started for today'
-                  : 'No account record for this day',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            if (provider.isToday) ...[
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => _showOpeningBalanceDialog(isFirstTime: true),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Start Day'),
-                style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return EmptyState(
+      icon: Icons.account_balance_wallet_outlined,
+      title: provider.isToday ? 'No account started for today' : 'No account record for this day',
+      action: provider.isToday
+          ? ElevatedButton.icon(
+              onPressed: () => _showOpeningBalanceDialog(isFirstTime: true),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Start Day'),
+            )
+          : null,
     );
   }
 
@@ -464,7 +398,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ─── Balance Cards Row ───
           Row(
             children: [
               Expanded(
@@ -473,67 +406,50 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   provider.todayAccount!.openingBalance,
                   Icons.account_balance,
                   AppColors.primaryAccent,
-                  onEdit: isClosed
-                      ? null
-                      : () => _showOpeningBalanceDialog(),
+                  onEdit: isClosed ? null : () => _showOpeningBalanceDialog(),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildBalanceCard(
                   'Remaining',
-                  isClosed
-                      ? provider.todayAccount!.closingBalance ?? 0
-                      : provider.remainingBalance,
+                  isClosed ? provider.todayAccount!.closingBalance ?? 0 : provider.remainingBalance,
                   Icons.savings,
-                  provider.remainingBalance >= 0
-                      ? AppColors.successColor
-                      : AppColors.errorColor,
+                  provider.remainingBalance >= 0 ? AppColors.successColor : AppColors.errorColor,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // ─── Total Spent Strip ───
-          Container(
+          PremiumCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.secondaryAccent.withValues(alpha: 0.2),
-                  AppColors.cardBackground,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
+            gradient: LinearGradient(
+              colors: [AppColors.secondaryAccent.withValues(alpha: 0.2), AppColors.cardBackground],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total Spent Today',
-                    style: TextStyle(color: AppColors.textSecondary)),
+                const Text('Total Spent Today', style: TextStyle(color: AppColors.textSecondary)),
                 Text(
                   '₹${provider.totalExpensesToday.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: AppColors.errorColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(color: AppColors.errorColor, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // ─── Day Closed Banner ───
+          _BalanceSparkline(provider: provider),
+          const SizedBox(height: 16),
+
           if (isClosed)
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: AppColors.goldAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppRadius.mdBorder,
                 border: Border.all(color: AppColors.goldAccent.withValues(alpha: 0.4)),
               ),
               child: Row(
@@ -543,72 +459,44 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   const Expanded(
                     child: Text(
                       'This day has been closed',
-                      style: TextStyle(
-                        color: AppColors.goldAccent,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: TextStyle(color: AppColors.goldAccent, fontWeight: FontWeight.w600),
                     ),
                   ),
                   if (provider.isToday)
                     TextButton(
                       onPressed: () => provider.reopenDay(),
-                      child: const Text('Undo',
-                          style: TextStyle(color: AppColors.goldAccent)),
+                      child: const Text('Undo', style: TextStyle(color: AppColors.goldAccent)),
                     ),
                 ],
               ),
             ),
 
-          // ─── Expenses Header ───
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Expenses (${provider.expenses.length})',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
               if (!isClosed)
                 ElevatedButton.icon(
                   onPressed: () => _showAddExpenseDialog(),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Add'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                  ),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
                 ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // ─── Expenses List ───
           if (provider.expenses.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.receipt_long,
-                      size: 48, color: AppColors.textMuted),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'No expenses yet',
-                    style: TextStyle(color: AppColors.textMuted),
-                  ),
-                ],
-              ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: EmptyState(icon: Icons.receipt_long, title: 'No expenses yet'),
             )
           else
             ...provider.expenses.map((e) => _buildExpenseTile(e, isClosed)),
 
-          // ─── Close Day Button ───
           if (!isClosed && provider.todayAccount != null) ...[
             const SizedBox(height: 24),
             SizedBox(
@@ -619,10 +507,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 label: const Text('Close Day & Calculate'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.goldAccent,
-                  foregroundColor: AppColors.primaryBackground,
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -632,23 +519,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Widget _buildBalanceCard(
-      String label, double amount, IconData icon, Color color,
-      {VoidCallback? onEdit}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+  Widget _buildBalanceCard(String label, double amount, IconData icon, Color color, {VoidCallback? onEdit}) {
+    return PremiumCard(
+      borderColor: color.withValues(alpha: 0.3),
+      boxShadow: [
+        BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4)),
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -659,93 +535,67 @@ class _AccountsScreenState extends State<AccountsScreen> {
               if (onEdit != null)
                 InkWell(
                   onTap: onEdit,
-                  child: Icon(Icons.edit, color: AppColors.textMuted, size: 16),
+                  child: const Icon(Icons.edit, color: AppColors.textMuted, size: 16),
                 ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             '₹${amount.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            style: TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: color),
           ),
           const SizedBox(height: 4),
-          Text(label,
-              style:
-                  const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
         ],
       ),
     );
   }
 
   Widget _buildExpenseTile(ExpenseModel expense, bool isClosed) {
-    final timeStr = expense.createdAt.length >= 16
-        ? expense.createdAt.substring(11, 16)
-        : '';
+    final timeStr = expense.createdAt.length >= 16 ? expense.createdAt.substring(11, 16) : '';
 
     return Dismissible(
       key: Key('expense-${expense.id}'),
-      direction:
-          isClosed ? DismissDirection.none : DismissDirection.endToStart,
+      direction: isClosed ? DismissDirection.none : DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppColors.errorColor.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.mdBorder,
         ),
         child: const Icon(Icons.delete, color: AppColors.errorColor),
       ),
       onDismissed: (_) {
-        Provider.of<AccountsProvider>(context, listen: false)
-            .deleteExpense(expense.id!);
+        Provider.of<AccountsProvider>(context, listen: false).deleteExpense(expense.id!);
       },
-      child: GestureDetector(
-        onTap: isClosed ? null : () => _showAddExpenseDialog(expense),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: PremiumCard(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderColor),
-          ),
+          onTap: isClosed ? null : () => _showAddExpenseDialog(expense),
           child: Row(
             children: [
               Container(
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: _categoryColor(expense.category).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
+                  color: CategoryStyles.color(expense.category).withValues(alpha: 0.15),
+                  borderRadius: AppRadius.smBorder,
                 ),
-                child: Icon(
-                  _categoryIcon(expense.category),
-                  color: _categoryColor(expense.category),
-                  size: 20,
-                ),
+                child: Icon(CategoryStyles.icon(expense.category), color: CategoryStyles.color(expense.category), size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      expense.category,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    Text(expense.category, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                     if (expense.note.isNotEmpty)
                       Text(
                         expense.note,
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -757,18 +607,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 children: [
                   Text(
                     '- ₹${expense.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: AppColors.errorColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                    style: const TextStyle(color: AppColors.errorColor, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   if (timeStr.isNotEmpty)
-                    Text(
-                      timeStr,
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 11),
-                    ),
+                    Text(timeStr, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 ],
               ),
             ],
@@ -779,42 +621,63 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 }
 
-// ─── Helpers ───
+/// Small sparkline of the current month's daily closing balances —
+/// gives the accounts screen a quick trend visual instead of only numbers.
+class _BalanceSparkline extends StatelessWidget {
+  final AccountsProvider provider;
 
-IconData _categoryIcon(String category) {
-  switch (category) {
-    case 'Staff Advance':
-      return Icons.person_outline;
-    case 'Groceries':
-      return Icons.shopping_cart;
-    case 'Maintenance':
-      return Icons.build;
-    case 'Staff Salaries':
-      return Icons.payments;
-    case 'Wi-Fi':
-      return Icons.wifi;
-    case 'Other':
-      return Icons.more_horiz;
-    default:
-      return Icons.receipt;
-  }
-}
+  const _BalanceSparkline({required this.provider});
 
-Color _categoryColor(String category) {
-  switch (category) {
-    case 'Staff Advance':
-      return const Color(0xFF00D9FF);
-    case 'Groceries':
-      return const Color(0xFF2ED573);
-    case 'Maintenance':
-      return const Color(0xFFFFB800);
-    case 'Staff Salaries':
-      return const Color(0xFF7B2FFF);
-    case 'Wi-Fi':
-      return const Color(0xFFFF6B81);
-    case 'Other':
-      return const Color(0xFF6C7A9C);
-    default:
-      return const Color(0xFFB0B3C1);
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: provider.getDailyAccountsForMonth(),
+      builder: (context, snapshot) {
+        final accounts = (snapshot.data ?? [])
+            .where((a) => a.closingBalance != null)
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
+
+        if (accounts.length < 2) return const SizedBox.shrink();
+
+        final spots = <FlSpot>[
+          for (var i = 0; i < accounts.length; i++) FlSpot(i.toDouble(), accounts[i].closingBalance!),
+        ];
+
+        return PremiumCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader(title: 'BALANCE TREND THIS MONTH', icon: Icons.show_chart_rounded),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                height: 90,
+                child: LineChart(
+                  LineChartData(
+                    gridData: const FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    titlesData: const FlTitlesData(show: false),
+                    lineTouchData: const LineTouchData(enabled: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: AppColors.primaryAccent,
+                        barWidth: 2.5,
+                        dotData: const FlDotData(show: false),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: AppColors.primaryAccent.withValues(alpha: 0.12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

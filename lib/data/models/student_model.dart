@@ -12,9 +12,12 @@ class StudentModel {
   final String hometown;
   final String address;
   final String advanceAmount;
-  final String agreementSubmitted;
   final String rentStatus;
   final String paymentMode;
+  final String? aadharCard;
+  final String? aadharName;
+  final String? studentPicture;
+  final String? studentPictureName;
 
   StudentModel({
     this.id,
@@ -30,15 +33,18 @@ class StudentModel {
     required this.hometown,
     required this.address,
     required this.advanceAmount,
-    required this.agreementSubmitted,
     this.rentStatus = 'Pending',
     this.paymentMode = '-',
+    this.aadharCard,
+    this.aadharName,
+    this.studentPicture,
+    this.studentPictureName,
   });
 
   // Convert to Map for database
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
+      if (id != null) 'id': id,
       'room_number': roomNumber,
       'name': name,
       'dob': dob,
@@ -51,9 +57,12 @@ class StudentModel {
       'hometown': hometown,
       'address': address,
       'advance_amount': advanceAmount,
-      'agreement_submitted': agreementSubmitted,
       'rent_status': rentStatus,
       'payment_mode': paymentMode,
+      'aadhar_card': aadharCard,
+      'aadhar_name': aadharName,
+      'student_picture': studentPicture,
+      'student_picture_name': studentPictureName,
     };
   }
 
@@ -73,9 +82,12 @@ class StudentModel {
       hometown: map['hometown'],
       address: map['address'],
       advanceAmount: map['advance_amount'],
-      agreementSubmitted: map['agreement_submitted'],
       rentStatus: map['rent_status'] ?? 'Pending',
       paymentMode: map['payment_mode'] ?? '-',
+      aadharCard: map['aadhar_card'],
+      aadharName: map['aadhar_name'],
+      studentPicture: map['student_picture'],
+      studentPictureName: map['student_picture_name'],
     );
   }
 
@@ -94,9 +106,12 @@ class StudentModel {
     String? hometown,
     String? address,
     String? advanceAmount,
-    String? agreementSubmitted,
     String? rentStatus,
     String? paymentMode,
+    String? aadharCard,
+    String? aadharName,
+    String? studentPicture,
+    String? studentPictureName,
   }) {
     return StudentModel(
       id: id ?? this.id,
@@ -112,9 +127,12 @@ class StudentModel {
       hometown: hometown ?? this.hometown,
       address: address ?? this.address,
       advanceAmount: advanceAmount ?? this.advanceAmount,
-      agreementSubmitted: agreementSubmitted ?? this.agreementSubmitted,
       rentStatus: rentStatus ?? this.rentStatus,
       paymentMode: paymentMode ?? this.paymentMode,
+      aadharCard: aadharCard ?? this.aadharCard,
+      aadharName: aadharName ?? this.aadharName,
+      studentPicture: studentPicture ?? this.studentPicture,
+      studentPictureName: studentPictureName ?? this.studentPictureName,
     );
   }
 }
