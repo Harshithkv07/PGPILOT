@@ -155,6 +155,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   value: selectedCategory,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Category'),
                   dropdownColor: AppColors.cardBackground,
                   items: ExpenseModel.categories
@@ -164,7 +165,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                               children: [
                                 Icon(CategoryStyles.icon(c), size: 20, color: CategoryStyles.color(c)),
                                 const SizedBox(width: 8),
-                                Text(c),
+                                Expanded(
+                                  child: Text(c, overflow: TextOverflow.ellipsis),
+                                ),
                               ],
                             ),
                           ))
@@ -591,7 +594,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(expense.category, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    Text(
+                      expense.category,
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     if (expense.note.isNotEmpty)
                       Text(
                         expense.note,

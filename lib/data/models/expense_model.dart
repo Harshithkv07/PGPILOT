@@ -7,12 +7,16 @@ class ExpenseModel {
   final String createdAt;
 
   static const List<String> categories = [
+    'Vegetables and Provision',
     'Staff Advance',
-    'Groceries',
-    'Maintenance',
     'Staff Salaries',
-    'Wi-Fi',
-    'Other',
+    'Snacks',
+    'Chicken',
+    'Maintenance',
+    'Waste Removal',
+    'EB',
+    'Wifi Bill',
+    'Returned to Student',
   ];
 
   ExpenseModel({

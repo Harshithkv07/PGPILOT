@@ -185,7 +185,12 @@ class _MonthlySummarySheetState extends State<MonthlySummarySheet> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(entry.key, style: const TextStyle(color: AppColors.textPrimary)),
+              child: Text(
+                entry.key,
+                style: const TextStyle(color: AppColors.textPrimary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Text(
               '₹${entry.value.toStringAsFixed(2)}',
