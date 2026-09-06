@@ -177,7 +177,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       String? aadharBase64;
 
       if (_aadharFilePath != null) {
-        final roomNo = int.parse(_roomNumberController.text);
+        final roomNo = _roomNumberController.text.trim();
         final studentName = _nameController.text.trim();
         final savedFileMap = await _fileStorageService.saveAadharCard(
           sourcePath: _aadharFilePath!,
@@ -194,7 +194,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       String? studentPictureBase64;
 
       if (_studentPictureFilePath != null) {
-        final roomNo = int.parse(_roomNumberController.text);
+        final roomNo = _roomNumberController.text.trim();
         final studentName = _nameController.text.trim();
         final savedFileMap = await _fileStorageService.saveStudentPicture(
           sourcePath: _studentPictureFilePath!,
@@ -208,7 +208,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       }
 
       final student = StudentModel(
-        roomNumber: int.parse(_roomNumberController.text),
+        roomNumber: _roomNumberController.text.trim(),
         name: _nameController.text.trim(),
         dob: _dobController.text.trim(),
         contact: _contactController.text.trim(),
@@ -373,60 +373,60 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             TextFormField(
               controller: _dobController,
               decoration: const InputDecoration(
-                labelText: 'Date of Birth (DD/MM/YYYY) *',
+                labelText: 'Date of Birth (DD/MM/YYYY)',
                 prefixIcon: Icon(Icons.calendar_today),
               ),
               readOnly: true,
               onTap: _selectDate,
-              validator: Validators.validateDate,
+              validator: Validators.validateOptionalDate,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _contactController,
               decoration: const InputDecoration(
-                labelText: 'Contact Number *',
+                labelText: 'Contact Number',
                 prefixIcon: Icon(Icons.phone),
               ),
               keyboardType: TextInputType.phone,
-              validator: Validators.validatePhone,
+              validator: Validators.validateOptionalPhone,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _fatherNameController,
               decoration: const InputDecoration(
-                labelText: "Father's Name *",
+                labelText: "Father's Name",
                 prefixIcon: Icon(Icons.person_outline),
               ),
-              validator: (value) => Validators.validateRequired(value, "Father's name"),
+              validator: null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _fatherNumberController,
               decoration: const InputDecoration(
-                labelText: "Father's Number *",
+                labelText: "Father's Number",
                 prefixIcon: Icon(Icons.phone_outlined),
               ),
               keyboardType: TextInputType.phone,
-              validator: Validators.validatePhone,
+              validator: Validators.validateOptionalPhone,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _motherNameController,
               decoration: const InputDecoration(
-                labelText: "Mother's Name *",
+                labelText: "Mother's Name",
                 prefixIcon: Icon(Icons.person_outline),
               ),
-              validator: (value) => Validators.validateRequired(value, "Mother's name"),
+              validator: null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _motherNumberController,
               decoration: const InputDecoration(
-                labelText: "Mother's Number *",
+                labelText: "Mother's Number",
                 prefixIcon: Icon(Icons.phone_outlined),
               ),
               keyboardType: TextInputType.phone,
-              validator: Validators.validatePhone,
+              validator: Validators.validateOptionalPhone,
             ),
           ],
         ),
@@ -446,29 +446,29 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             TextFormField(
               controller: _collegeController,
               decoration: const InputDecoration(
-                labelText: 'College/Workplace *',
+                labelText: 'College/Workplace',
                 prefixIcon: Icon(Icons.school),
               ),
-              validator: (value) => Validators.validateRequired(value, 'College/Workplace'),
+              validator: null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _hometownController,
               decoration: const InputDecoration(
-                labelText: 'Hometown *',
+                labelText: 'Hometown',
                 prefixIcon: Icon(Icons.location_city),
               ),
-              validator: (value) => Validators.validateRequired(value, 'Hometown'),
+              validator: null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _addressController,
               decoration: const InputDecoration(
-                labelText: 'Residence Address *',
+                labelText: 'Residence Address',
                 prefixIcon: Icon(Icons.home),
               ),
               maxLines: 2,
-              validator: (value) => Validators.validateRequired(value, 'Address'),
+              validator: null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -477,18 +477,18 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 labelText: 'Assign Room Number *',
                 prefixIcon: Icon(Icons.meeting_room),
               ),
-              keyboardType: TextInputType.number,
-              validator: (value) => Validators.validateNumber(value, 'Room number'),
+              
+              validator: (value) => Validators.validateRequired(value, 'Room number'),
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _advanceAmountController,
               decoration: const InputDecoration(
-                labelText: 'Advance Amount *',
+                labelText: 'Advance Amount',
                 prefixIcon: Icon(Icons.currency_rupee),
               ),
               keyboardType: TextInputType.number,
-              validator: (value) => Validators.validateRequired(value, 'Advance amount'),
+              validator: null,
             ),
             const SizedBox(height: AppSpacing.lg),
 

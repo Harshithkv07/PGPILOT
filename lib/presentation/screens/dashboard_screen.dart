@@ -90,14 +90,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final capacityText = capacityController.text.trim();
                 final priceText = priceController.text.trim();
 
-                final roomNumber = int.tryParse(roomText);
+                // Room codes are free text so zero-padded codes like "0002"
+                // are kept exactly as typed.
+                final roomNumber = roomText;
                 final capacity = int.tryParse(capacityText);
                 final price = int.tryParse(priceText);
 
-                if (roomNumber == null || capacity == null || price == null) {
+                if (roomNumber.isEmpty || capacity == null || price == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please enter valid numeric values for all fields.'),
+                      content: Text('Enter a room number, and numeric beds and rent.'),
                       backgroundColor: AppColors.errorColor,
                     ),
                   );
@@ -159,13 +161,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
               onPressed: () async {
-                final roomText = roomNumberController.text.trim();
-                final roomNumber = int.tryParse(roomText);
+                final roomNumber = roomNumberController.text.trim();
 
-                if (roomNumber == null) {
+                if (roomNumber.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please enter a valid room number.'),
+                      content: Text('Please enter a room number.'),
                       backgroundColor: AppColors.errorColor,
                     ),
                   );

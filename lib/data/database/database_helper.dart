@@ -31,7 +31,7 @@ class DatabaseHelper {
     
     final db = await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -43,7 +43,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE students (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        room_number INTEGER NOT NULL,
+        room_number TEXT NOT NULL,
         name TEXT NOT NULL,
         dob TEXT NOT NULL,
         contact TEXT NOT NULL,
@@ -67,7 +67,7 @@ class DatabaseHelper {
     // Create rooms table
     await db.execute('''
       CREATE TABLE rooms (
-        room_number INTEGER PRIMARY KEY,
+        room_number TEXT PRIMARY KEY,
         capacity INTEGER NOT NULL,
         price INTEGER NOT NULL,
         eb_bill INTEGER DEFAULT 0
@@ -168,6 +168,72 @@ class DatabaseHelper {
       await db.delete('expenses');
       await db.delete('daily_accounts');
       await db.delete('rooms');
+    }
+    if (oldVersion < 7) {
+      // room_number becomes TEXT so zero-padded codes like "0002" keep their
+      // leading zeros. SQLite can't change a column type in place, so both
+      // tables are rebuilt and copied across.
+      await db.execute('''
+        CREATE TABLE rooms_new (
+          room_number TEXT PRIMARY KEY,
+          capacity INTEGER NOT NULL,
+          price INTEGER NOT NULL,
+          eb_bill INTEGER DEFAULT 0
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO rooms_new (room_number, capacity, price, eb_bill)
+        SELECT CAST(room_number AS TEXT), capacity, price, eb_bill FROM rooms
+      ''');
+      await db.execute('DROP TABLE rooms');
+      await db.execute('ALTER TABLE rooms_new RENAME TO rooms');
+
+      // payment_history references students(id) ON DELETE CASCADE. Dropping
+      // the students table below would wipe it if foreign key enforcement is
+      // ever switched on, so stash the rows in a constraint-free table first
+      // and put them back afterwards. CREATE TABLE ... AS SELECT carries no
+      // foreign key, so the copy is immune to the cascade either way.
+      await db.execute('CREATE TABLE ph_backup AS SELECT * FROM payment_history');
+
+      await db.execute('''
+        CREATE TABLE students_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          room_number TEXT NOT NULL,
+          name TEXT NOT NULL,
+          dob TEXT NOT NULL,
+          contact TEXT NOT NULL,
+          father_name TEXT NOT NULL,
+          father_number TEXT NOT NULL,
+          mother_name TEXT NOT NULL,
+          mother_number TEXT NOT NULL,
+          college TEXT NOT NULL,
+          hometown TEXT NOT NULL,
+          address TEXT NOT NULL,
+          advance_amount TEXT NOT NULL,
+          rent_status TEXT DEFAULT 'Pending',
+          payment_mode TEXT DEFAULT '-',
+          aadhar_card TEXT,
+          aadhar_name TEXT,
+          student_picture TEXT,
+          student_picture_name TEXT
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO students_new
+          SELECT id, CAST(room_number AS TEXT), name, dob, contact,
+                 father_name, father_number, mother_name, mother_number,
+                 college, hometown, address, advance_amount,
+                 rent_status, payment_mode,
+                 aadhar_card, aadhar_name, student_picture, student_picture_name
+          FROM students
+      ''');
+      await db.execute('DROP TABLE students');
+      await db.execute('ALTER TABLE students_new RENAME TO students');
+
+      // Restore payment history in case the drop above cascaded it away.
+      await db.execute('DELETE FROM payment_history');
+      await db.execute('INSERT INTO payment_history SELECT * FROM ph_backup');
+      await db.execute('DROP TABLE ph_backup');
     }
   }
 

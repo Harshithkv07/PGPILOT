@@ -8,7 +8,7 @@ class RoomProvider with ChangeNotifier {
   final StudentRepository _studentRepo = StudentRepository();
   
   List<RoomConfigModel> _rooms = [];
-  final Map<int, int> _occupancyMap = {};
+  final Map<String, int> _occupancyMap = {};
   bool _isLoading = false;
   String _filter = 'all'; // 'all' or 'available'
 
@@ -23,7 +23,7 @@ class RoomProvider with ChangeNotifier {
   }
   
   List<RoomConfigModel> get allRooms => _rooms;
-  Map<int, int> get occupancyMap => _occupancyMap;
+  Map<String, int> get occupancyMap => _occupancyMap;
   bool get isLoading => _isLoading;
   String get currentFilter => _filter;
 
@@ -59,7 +59,7 @@ class RoomProvider with ChangeNotifier {
 
   // Add a new room
   Future<bool> addRoom({
-    required int roomNumber,
+    required String roomNumber,
     required int capacity,
     required int price,
   }) async {
@@ -86,7 +86,7 @@ class RoomProvider with ChangeNotifier {
   }
 
   // Delete room (only if no students assigned)
-  Future<bool> deleteRoom(int roomNumber) async {
+  Future<bool> deleteRoom(String roomNumber) async {
     try {
       final occupancy = await _studentRepo.getRoomOccupancy(roomNumber);
       if (occupancy > 0) {
@@ -104,7 +104,7 @@ class RoomProvider with ChangeNotifier {
   }
 
   // Update room price
-  Future<void> updateRoomPrice(int roomNumber, int newPrice) async {
+  Future<void> updateRoomPrice(String roomNumber, int newPrice) async {
     await _roomRepo.updateRoomPrice(roomNumber, newPrice);
     await loadRooms();
   }
@@ -116,7 +116,7 @@ class RoomProvider with ChangeNotifier {
   }
 
   // Update room EB bill
-  Future<void> updateEbBill(int roomNumber, int newEbBill) async {
+  Future<void> updateEbBill(String roomNumber, int newEbBill) async {
     await _roomRepo.updateEbBill(roomNumber, newEbBill);
     await loadRooms();
   }
@@ -128,7 +128,7 @@ class RoomProvider with ChangeNotifier {
   }
 
   // Get room by number
-  RoomConfigModel? getRoomByNumber(int roomNumber) {
+  RoomConfigModel? getRoomByNumber(String roomNumber) {
     try {
       return _rooms.firstWhere((room) => room.roomNumber == roomNumber);
     } catch (e) {

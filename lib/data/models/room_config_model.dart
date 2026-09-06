@@ -1,5 +1,5 @@
 class RoomConfigModel {
-  final int roomNumber;
+  final String roomNumber;
   final int capacity;
   final int price;
   final int ebBill;
@@ -33,7 +33,7 @@ class RoomConfigModel {
 
   // Copy with method for updates
   RoomConfigModel copyWith({
-    int? roomNumber,
+    String? roomNumber,
     int? capacity,
     int? price,
     int? ebBill,

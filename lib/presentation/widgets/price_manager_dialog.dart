@@ -13,7 +13,7 @@ class PriceManagerDialog extends StatefulWidget {
 
 class _PriceManagerDialogState extends State<PriceManagerDialog> {
   final _priceController = TextEditingController();
-  final Set<int> _selectedRoomNumbers = {};
+  final Set<String> _selectedRoomNumbers = {};
   int? _selectedCapacity;
 
   @override

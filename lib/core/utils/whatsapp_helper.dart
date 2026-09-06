@@ -18,7 +18,7 @@ class WhatsAppHelper {
   }
 
   // Send welcome message to student
-  static Future<bool> sendWelcomeMessage(String phone, String name, int roomNumber) async {
+  static Future<bool> sendWelcomeMessage(String phone, String name, String roomNumber) async {
     final formattedPhone = _formatPhoneNumber(phone);
     final message = 'Hello $name! Welcome to our PG. You have been assigned Room $roomNumber. '
         'We hope you have a comfortable stay with us. Feel free to reach out if you need anything!';
@@ -27,7 +27,7 @@ class WhatsAppHelper {
   }
 
   // Send rent reminder
-  static Future<bool> sendRentReminder(String phone, String name, int roomNumber, int amountDue) async {
+  static Future<bool> sendRentReminder(String phone, String name, String roomNumber, int amountDue) async {
     final formattedPhone = _formatPhoneNumber(phone);
     final message = 'Hi $name, gentle reminder that rent for Room $roomNumber is pending. '
         'Your total due amount is ₹$amountDue. '

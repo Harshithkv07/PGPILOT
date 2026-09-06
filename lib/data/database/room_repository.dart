@@ -4,15 +4,20 @@ import 'database_helper.dart';
 class RoomRepository {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
-  // Get all rooms
+  // Get all rooms, lowest room code first.
+  //
+  // room_number used to be an INTEGER PRIMARY KEY (i.e. the rowid), so rows
+  // came back in room order for free. As TEXT it needs an explicit sort, or
+  // rooms would appear in whatever order they were created.
   Future<List<RoomConfigModel>> getAllRooms() async {
     final db = await _dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.query('rooms');
+    final List<Map<String, dynamic>> maps =
+        await db.query('rooms', orderBy: 'room_number');
     return List.generate(maps.length, (i) => RoomConfigModel.fromMap(maps[i]));
   }
 
   // Get room by number
-  Future<RoomConfigModel?> getRoomByNumber(int roomNumber) async {
+  Future<RoomConfigModel?> getRoomByNumber(String roomNumber) async {
     final db = await _dbHelper.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'rooms',
@@ -36,7 +41,7 @@ class RoomRepository {
   }
 
   // Update room price
-  Future<int> updateRoomPrice(int roomNumber, int newPrice) async {
+  Future<int> updateRoomPrice(String roomNumber, int newPrice) async {
     final db = await _dbHelper.database;
     return await db.update(
       'rooms',
@@ -58,7 +63,7 @@ class RoomRepository {
   }
 
   // Update room EB Bill
-  Future<int> updateEbBill(int roomNumber, int newEbBill) async {
+  Future<int> updateEbBill(String roomNumber, int newEbBill) async {
     final db = await _dbHelper.database;
     return await db.update(
       'rooms',
@@ -84,7 +89,7 @@ class RoomRepository {
   }
 
   // Delete room
-  Future<int> deleteRoom(int roomNumber) async {
+  Future<int> deleteRoom(String roomNumber) async {
     final db = await _dbHelper.database;
     return await db.delete(
       'rooms',

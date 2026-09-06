@@ -7,7 +7,7 @@ import '../models/room_config_model.dart';
 class ExcelService {
   Future<String> exportStudentsToExcel(
     List<StudentModel> students,
-    Map<int, RoomConfigModel> roomsMap,
+    Map<String, RoomConfigModel> roomsMap,
   ) async {
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['Students'];
@@ -39,7 +39,7 @@ class ExcelService {
     for (var student in students) {
       final room = roomsMap[student.roomNumber];
       sheetObject.appendRow([
-        IntCellValue(student.roomNumber),
+        TextCellValue(student.roomNumber),
         TextCellValue(student.name),
         TextCellValue(student.dob),
         TextCellValue(student.contact),

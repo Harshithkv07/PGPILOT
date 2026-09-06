@@ -1,6 +1,6 @@
 class StudentModel {
   final int? id;
-  final int roomNumber;
+  final String roomNumber;
   final String name;
   final String dob;
   final String contact;
@@ -19,20 +19,23 @@ class StudentModel {
   final String? studentPicture;
   final String? studentPictureName;
 
+  /// Only [roomNumber] and [name] are required. Every other detail can be
+  /// filled in later, so they default to an empty string — the underlying
+  /// columns are NOT NULL, so '' is used rather than null.
   StudentModel({
     this.id,
     required this.roomNumber,
     required this.name,
-    required this.dob,
-    required this.contact,
-    required this.fatherName,
-    required this.fatherNumber,
-    required this.motherName,
-    required this.motherNumber,
-    required this.college,
-    required this.hometown,
-    required this.address,
-    required this.advanceAmount,
+    this.dob = '',
+    this.contact = '',
+    this.fatherName = '',
+    this.fatherNumber = '',
+    this.motherName = '',
+    this.motherNumber = '',
+    this.college = '',
+    this.hometown = '',
+    this.address = '',
+    this.advanceAmount = '',
     this.rentStatus = 'Pending',
     this.paymentMode = '-',
     this.aadharCard,
@@ -72,16 +75,16 @@ class StudentModel {
       id: map['id'],
       roomNumber: map['room_number'],
       name: map['name'],
-      dob: map['dob'],
-      contact: map['contact'],
-      fatherName: map['father_name'],
-      fatherNumber: map['father_number'],
-      motherName: map['mother_name'],
-      motherNumber: map['mother_number'],
-      college: map['college'],
-      hometown: map['hometown'],
-      address: map['address'],
-      advanceAmount: map['advance_amount'],
+      dob: map['dob'] ?? '',
+      contact: map['contact'] ?? '',
+      fatherName: map['father_name'] ?? '',
+      fatherNumber: map['father_number'] ?? '',
+      motherName: map['mother_name'] ?? '',
+      motherNumber: map['mother_number'] ?? '',
+      college: map['college'] ?? '',
+      hometown: map['hometown'] ?? '',
+      address: map['address'] ?? '',
+      advanceAmount: map['advance_amount'] ?? '',
       rentStatus: map['rent_status'] ?? 'Pending',
       paymentMode: map['payment_mode'] ?? '-',
       aadharCard: map['aadhar_card'],
@@ -94,7 +97,7 @@ class StudentModel {
   // Copy with method for updates
   StudentModel copyWith({
     int? id,
-    int? roomNumber,
+    String? roomNumber,
     String? name,
     String? dob,
     String? contact,

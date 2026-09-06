@@ -11,7 +11,7 @@ import 'common/section_header.dart';
 /// raw stat numbers.
 class OccupancyChart extends StatelessWidget {
   final List<RoomConfigModel> rooms;
-  final Map<int, int> occupancyMap;
+  final Map<String, int> occupancyMap;
 
   const OccupancyChart({super.key, required this.rooms, required this.occupancyMap});
 

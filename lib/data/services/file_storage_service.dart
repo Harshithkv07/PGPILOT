@@ -42,7 +42,7 @@ class FileStorageService {
   Future<String> savePaymentScreenshot({
     required String sourcePath,
     required String studentName,
-    required int roomNumber,
+    required String roomNumber,
     String? month, // Optional, defaults to current month
   }) async {
     try {
@@ -180,7 +180,7 @@ class FileStorageService {
   Future<Map<String, String>> saveAadharCard({
     required String sourcePath,
     required String studentName,
-    required int roomNumber,
+    required String roomNumber,
   }) async {
     try {
       final sourceFile = File(sourcePath);
@@ -243,7 +243,7 @@ class FileStorageService {
   Future<Map<String, String>> saveStudentPicture({
     required String sourcePath,
     required String studentName,
-    required int roomNumber,
+    required String roomNumber,
   }) async {
     try {
       final sourceFile = File(sourcePath);

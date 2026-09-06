@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Resident data — never commit real rosters, exported databases or backups.
+# Student names, contacts and Aadhaar scans are personal data.
+*.csv
+*.db
+*.db-journal
+/PGPilot_Backups/
+
+# Android signing material
+*.jks
+*.keystore
+key.properties
+/android/local.properties

@@ -35,7 +35,7 @@ class _RentScreenState extends State<RentScreen> {
     });
   }
 
-  Future<void> _markAsPaid(int studentId, String studentName, int roomNumber) async {
+  Future<void> _markAsPaid(int studentId, String studentName, String roomNumber) async {
     final paymentMode = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -186,7 +186,7 @@ class _RentScreenState extends State<RentScreen> {
     );
   }
 
-  Future<void> _sendReminder(String contact, String name, int roomNumber, int amountDue) async {
+  Future<void> _sendReminder(String contact, String name, String roomNumber, int amountDue) async {
     final success = await WhatsAppHelper.sendRentReminder(contact, name, roomNumber, amountDue);
 
     if (mounted) {

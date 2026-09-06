@@ -18,6 +18,7 @@ import 'rent_screen.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/premium_bottom_nav.dart';
+import '../widgets/import_students_dialog.dart';
 import '../widgets/monthly_summary_sheet.dart';
 import '../widgets/monthly_overview_sheet.dart';
 
@@ -172,6 +173,14 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
           if (_currentIndex == 2) ...[
+            IconButton(
+              icon: const Icon(Icons.upload_file),
+              tooltip: 'Import Students from CSV',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const ImportStudentsDialog(),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.person_add),
               tooltip: 'Add New Student',

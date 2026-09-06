@@ -31,7 +31,7 @@ class StudentRepository {
   }
 
   // Get students by room number
-  Future<List<StudentModel>> getStudentsByRoom(int roomNumber) async {
+  Future<List<StudentModel>> getStudentsByRoom(String roomNumber) async {
     final db = await _dbHelper.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'students',
@@ -85,7 +85,7 @@ class StudentRepository {
   }
 
   // Get count of students in a room
-  Future<int> getRoomOccupancy(int roomNumber) async {
+  Future<int> getRoomOccupancy(String roomNumber) async {
     final db = await _dbHelper.database;
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM students WHERE room_number = ?',
