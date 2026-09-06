@@ -1,3 +1,6 @@
+// Keep this import even though sqflite_common_ffi re-exports the same symbols:
+// on Android/iOS it is what installs the default mobile databaseFactory.
+// ignore: unnecessary_import
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:io';
@@ -28,11 +31,10 @@ class DatabaseHelper {
     
     final db = await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
-    await _insertMockDataIfNeeded(db);
     return db;
   }
 
@@ -109,8 +111,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Insert default room configurations
-    await _insertDefaultRooms(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -160,246 +160,19 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE students ADD COLUMN student_picture_name TEXT');
       await db.execute('ALTER TABLE rooms ADD COLUMN eb_bill INTEGER DEFAULT 0');
     }
-  }
-
-  Future<void> _insertDefaultRooms(Database db) async {
-    final defaultRooms = [
-      {'room_number': 101, 'capacity': 1, 'price': 8000},
-      {'room_number': 102, 'capacity': 2, 'price': 6000},
-      {'room_number': 103, 'capacity': 2, 'price': 6000},
-      {'room_number': 104, 'capacity': 3, 'price': 5000},
-      {'room_number': 105, 'capacity': 3, 'price': 5000},
-      {'room_number': 201, 'capacity': 1, 'price': 8500},
-      {'room_number': 202, 'capacity': 2, 'price': 6500},
-      {'room_number': 203, 'capacity': 3, 'price': 5500},
-      {'room_number': 204, 'capacity': 4, 'price': 4500},
-      {'room_number': 205, 'capacity': 4, 'price': 4500},
-    ];
-
-    for (var room in defaultRooms) {
-      await db.insert('rooms', room);
+    if (oldVersion < 6) {
+      // One-time reset: earlier versions seeded demo students, rooms, expenses
+      // and daily accounts. Clear them so the app starts genuinely empty.
+      await db.delete('payment_history');
+      await db.delete('students');
+      await db.delete('expenses');
+      await db.delete('daily_accounts');
+      await db.delete('rooms');
     }
   }
 
   Future<void> close() async {
     final db = await database;
     db.close();
-  }
-
-  Future<void> _insertMockDataIfNeeded(Database db) async {
-    final studentCount = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM students'),
-    );
-    if (studentCount != null && studentCount > 0) {
-      return; // Already populated
-    }
-
-    // Insert mock students
-    final students = [
-      {
-        'room_number': 101,
-        'name': 'Aarav Mehta',
-        'dob': '15/08/2003',
-        'contact': '9876543210',
-        'father_name': 'Rajesh Mehta',
-        'father_number': '9876543211',
-        'mother_name': 'Sunita Mehta',
-        'mother_number': '9876543212',
-        'college': 'IIT Bombay',
-        'hometown': 'Mumbai',
-        'address': 'Flat 402, Sea Breeze, Bandra',
-        'advance_amount': '5000',
-        'rent_status': 'Paid',
-        'payment_mode': 'Google Pay'
-      },
-      {
-        'room_number': 102,
-        'name': 'Kabir Sharma',
-        'dob': '22/11/2002',
-        'contact': '8765432109',
-        'father_name': 'Anil Sharma',
-        'father_number': '8765432108',
-        'mother_name': 'Preeti Sharma',
-        'mother_number': '8765432107',
-        'college': 'St. Xavier\'s College',
-        'hometown': 'Pune',
-        'address': '12, Rose Villa, Koregaon Park',
-        'advance_amount': '5000',
-        'rent_status': 'Pending',
-        'payment_mode': '-'
-      },
-      {
-        'room_number': 102,
-        'name': 'Rohan Gupta',
-        'dob': '05/04/2004',
-        'contact': '7654321098',
-        'father_name': 'Sanjay Gupta',
-        'father_number': '7654321097',
-        'mother_name': 'Kiran Gupta',
-        'mother_number': '7654321096',
-        'college': 'NMIMS',
-        'hometown': 'Delhi',
-        'address': 'Sector 15, Rohini',
-        'advance_amount': '5000',
-        'rent_status': 'Paid',
-        'payment_mode': 'PhonePe'
-      },
-      {
-        'room_number': 201,
-        'name': 'Ishaan Verma',
-        'dob': '10/09/2003',
-        'contact': '6543210987',
-        'father_name': 'Vikram Verma',
-        'father_number': '6543210986',
-        'mother_name': 'Anita Verma',
-        'mother_number': '6543210985',
-        'college': 'DJ Sanghvi',
-        'hometown': 'Ahmedabad',
-        'address': '34, Shanti Nagar',
-        'advance_amount': '6000',
-        'rent_status': 'Pending',
-        'payment_mode': '-'
-      },
-      {
-        'room_number': 203,
-        'name': 'Aditya Rao',
-        'dob': '18/01/2002',
-        'contact': '9988776655',
-        'father_name': 'Srinivas Rao',
-        'father_number': '9988776654',
-        'mother_name': 'Laxmi Rao',
-        'mother_number': '9988776653',
-        'college': 'IIT Bombay',
-        'hometown': 'Hyderabad',
-        'address': 'Jubilee Hills',
-        'advance_amount': '5000',
-        'rent_status': 'Paid',
-        'payment_mode': 'Cash'
-      }
-    ];
-
-    final studentIds = <int>[];
-    for (var student in students) {
-      final id = await db.insert('students', student);
-      studentIds.add(id);
-    }
-
-    // Insert payment history
-    final paymentHistories = [
-      {
-        'student_id': studentIds[0],
-        'month': '2026-06',
-        'payment_status': 'Paid',
-        'payment_mode': 'Google Pay',
-        'screenshot_path': null,
-        'paid_date': '05/06/2026'
-      },
-      {
-        'student_id': studentIds[0],
-        'month': '2026-05',
-        'payment_status': 'Paid',
-        'payment_mode': 'Google Pay',
-        'screenshot_path': null,
-        'paid_date': '04/05/2026'
-      },
-      {
-        'student_id': studentIds[1],
-        'month': '2026-05',
-        'payment_status': 'Paid',
-        'payment_mode': 'Cash',
-        'screenshot_path': null,
-        'paid_date': '07/05/2026'
-      },
-      {
-        'student_id': studentIds[2],
-        'month': '2026-06',
-        'payment_status': 'Paid',
-        'payment_mode': 'PhonePe',
-        'screenshot_path': null,
-        'paid_date': '03/06/2026'
-      },
-      {
-        'student_id': studentIds[2],
-        'month': '2026-05',
-        'payment_status': 'Paid',
-        'payment_mode': 'PhonePe',
-        'screenshot_path': null,
-        'paid_date': '02/05/2026'
-      },
-      {
-        'student_id': studentIds[4],
-        'month': '2026-06',
-        'payment_status': 'Paid',
-        'payment_mode': 'Cash',
-        'screenshot_path': null,
-        'paid_date': '10/06/2026'
-      },
-    ];
-
-    for (var ph in paymentHistories) {
-      await db.insert('payment_history', ph);
-    }
-
-    // Insert expenses
-    final expenses = [
-      {
-        'date': '2026-06-17',
-        'amount': 1500.0,
-        'category': 'Utilities',
-        'note': 'High-speed WiFi bill',
-        'created_at': '2026-06-17 10:00:00'
-      },
-      {
-        'date': '2026-06-18',
-        'amount': 1200.0,
-        'category': 'Maintenance',
-        'note': 'Plumbing repairs room 102',
-        'created_at': '2026-06-18 14:30:00'
-      },
-      {
-        'date': '2026-06-19',
-        'amount': 3500.0,
-        'category': 'Food',
-        'note': 'Groceries & Milk supply',
-        'created_at': '2026-06-19 09:15:00'
-      },
-      {
-        'date': '2026-06-19',
-        'amount': 600.0,
-        'category': 'Others',
-        'note': 'Cleaning materials',
-        'created_at': '2026-06-19 11:45:00'
-      }
-    ];
-
-    for (var expense in expenses) {
-      await db.insert('expenses', expense);
-    }
-
-    // Insert daily accounts
-    final dailyAccounts = [
-      {
-        'date': '2026-06-17',
-        'opening_balance': 25000.0,
-        'closing_balance': 23500.0,
-        'is_day_closed': 1
-      },
-      {
-        'date': '2026-06-18',
-        'opening_balance': 23500.0,
-        'closing_balance': 22300.0,
-        'is_day_closed': 1
-      },
-      {
-        'date': '2026-06-19',
-        'opening_balance': 22300.0,
-        'closing_balance': null,
-        'is_day_closed': 0
-      }
-    ];
-
-    for (var da in dailyAccounts) {
-      await db.insert('daily_accounts', da);
-    }
   }
 }

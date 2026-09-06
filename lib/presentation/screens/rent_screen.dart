@@ -238,6 +238,32 @@ class _RentScreenState extends State<RentScreen> {
     }
   }
 
+  /// One line of the revenue breakdown: colour dot, label, and amount.
+  Widget _amountRow(String label, int amount, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ),
+        Text(
+          '₹$amount',
+          style: TextStyle(
+            fontFamily: 'Sora',
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -274,92 +300,28 @@ class _RentScreenState extends State<RentScreen> {
                               'Monthly Revenue Tracker',
                               style: TextStyle(fontFamily: 'Sora', fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                             ),
-                            const SizedBox(height: AppSpacing.lg),
+                            const SizedBox(height: AppSpacing.xl),
                             Row(
                               children: [
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 120,
-                                    child: potential == 0
-                                        ? const SizedBox.shrink()
-                                        : BarChart(
-                                            BarChartData(
-                                              alignment: BarChartAlignment.spaceAround,
-                                              maxY: potential.toDouble() * 1.15,
-                                              gridData: const FlGridData(show: false),
-                                              borderData: FlBorderData(show: false),
-                                              titlesData: FlTitlesData(
-                                                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                                bottomTitles: AxisTitles(
-                                                  sideTitles: SideTitles(
-                                                    showTitles: true,
-                                                    getTitlesWidget: (value, meta) {
-                                                      const labels = ['Collected', 'Pending'];
-                                                      final i = value.toInt();
-                                                      if (i < 0 || i > 1) return const SizedBox.shrink();
-                                                      return Padding(
-                                                        padding: const EdgeInsets.only(top: 6),
-                                                        child: Text(labels[i],
-                                                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                                                      );
-                                                    },
-                                                  ),
-                                                ),
-                                              ),
-                                              barGroups: [
-                                                BarChartGroupData(x: 0, barRods: [
-                                                  BarChartRodData(
-                                                    toY: collected.toDouble(),
-                                                    color: AppColors.successColor,
-                                                    width: 28,
-                                                    borderRadius: BorderRadius.circular(6),
-                                                  ),
-                                                ]),
-                                                BarChartGroupData(x: 1, barRods: [
-                                                  BarChartRodData(
-                                                    toY: pending.toDouble(),
-                                                    color: AppColors.roomFull,
-                                                    width: 28,
-                                                    borderRadius: BorderRadius.circular(6),
-                                                  ),
-                                                ]),
-                                              ],
-                                            ),
-                                          ),
-                                  ),
+                                _CollectionRing(
+                                  collected: collected,
+                                  pending: pending,
+                                  percentage: percentage,
                                 ),
                                 const SizedBox(width: AppSpacing.xl),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text('Collected', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                    Text('₹$collected',
-                                        style: const TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.successColor)),
-                                    const SizedBox(height: 10),
-                                    const Text('Potential', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                    Text('₹$potential',
-                                        style: const TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primaryAccent)),
-                                  ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _amountRow('Collected', collected, AppColors.successColor),
+                                      const SizedBox(height: AppSpacing.md),
+                                      _amountRow('Pending', pending, AppColors.paymentPending),
+                                      const Divider(height: AppSpacing.xl),
+                                      _amountRow('Potential', potential, AppColors.primaryAccent),
+                                    ],
+                                  ),
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-                            ClipRRect(
-                              borderRadius: AppRadius.smBorder,
-                              child: LinearProgressIndicator(
-                                value: percentage,
-                                minHeight: 10,
-                                backgroundColor: AppColors.secondaryBackground,
-                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.successColor),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              '${(percentage * 100).toStringAsFixed(1)}% Collected',
-                              style: const TextStyle(color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -518,6 +480,83 @@ class _RentScreenState extends State<RentScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Donut gauge showing what share of this month's potential rent has actually
+/// been collected, with the percentage called out in the middle.
+class _CollectionRing extends StatelessWidget {
+  final int collected;
+  final int pending;
+  final double percentage;
+
+  const _CollectionRing({
+    required this.collected,
+    required this.pending,
+    required this.percentage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = collected + pending > 0;
+
+    return SizedBox(
+      width: 132,
+      height: 132,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          PieChart(
+            PieChartData(
+              startDegreeOffset: -90,
+              sectionsSpace: hasData ? 2 : 0,
+              centerSpaceRadius: 46,
+              sections: hasData
+                  ? [
+                      PieChartSectionData(
+                        value: collected.toDouble(),
+                        color: AppColors.successColor,
+                        radius: 14,
+                        showTitle: false,
+                      ),
+                      PieChartSectionData(
+                        value: pending.toDouble(),
+                        color: AppColors.paymentPending.withValues(alpha: 0.85),
+                        radius: 14,
+                        showTitle: false,
+                      ),
+                    ]
+                  : [
+                      PieChartSectionData(
+                        value: 1,
+                        color: AppColors.borderColor,
+                        radius: 14,
+                        showTitle: false,
+                      ),
+                    ],
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${(percentage * 100).round()}%',
+                style: const TextStyle(
+                  fontFamily: 'Sora',
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Text(
+                'collected',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
