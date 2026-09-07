@@ -41,7 +41,7 @@ class _MonthlySummarySheetState extends State<MonthlySummarySheet> {
     _totalExpense = await accountsProvider.getMonthlyTotalExpense(monthStr);
 
     await rentProvider.loadStudents();
-    _totalRent = (await rentProvider.getCollectedRevenue()).toDouble();
+    _totalRent = rentProvider.getCollectedRevenue().toDouble();
 
     if (mounted) setState(() => _isLoading = false);
   }

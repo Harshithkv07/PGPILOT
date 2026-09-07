@@ -62,6 +62,33 @@ class RoomRepository {
     );
   }
 
+  // Update a room's bed count. Callers must check occupancy first: shrinking a
+  // room below the number of students living in it would strand them.
+  Future<int> updateRoomCapacity(String roomNumber, int newCapacity) async {
+    final db = await _dbHelper.database;
+    return await db.update(
+      'rooms',
+      {'capacity': newCapacity},
+      where: 'room_number = ?',
+      whereArgs: [roomNumber],
+    );
+  }
+
+  // Update capacity, price and EB bill in one write.
+  Future<int> updateRoom(RoomConfigModel room) async {
+    final db = await _dbHelper.database;
+    return await db.update(
+      'rooms',
+      {
+        'capacity': room.capacity,
+        'price': room.price,
+        'eb_bill': room.ebBill,
+      },
+      where: 'room_number = ?',
+      whereArgs: [room.roomNumber],
+    );
+  }
+
   // Update room EB Bill
   Future<int> updateEbBill(String roomNumber, int newEbBill) async {
     final db = await _dbHelper.database;

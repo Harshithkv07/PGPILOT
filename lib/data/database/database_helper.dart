@@ -10,6 +10,11 @@ class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   static Database? _database;
 
+  /// Overrides where the database file lives. Only set by tests, so suites that
+  /// run in parallel each get their own file instead of fighting over one.
+  /// Must be set before the first [database] access.
+  static String? databasePathOverride;
+
   factory DatabaseHelper() => _instance;
 
   DatabaseHelper._internal();
@@ -27,18 +32,21 @@ class DatabaseHelper {
       databaseFactory = databaseFactoryFfi;
     }
     
-    String path = join(await getDatabasesPath(), 'pg_management.db');
+    String path =
+        databasePathOverride ?? join(await getDatabasesPath(), 'pg_management.db');
     
     final db = await openDatabase(
       path,
-      version: 7,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
+      version: 8,
+      onCreate: onCreate,
+      onUpgrade: onUpgrade,
     );
     return db;
   }
 
-  Future<void> _onCreate(Database db, int version) async {
+  /// Schema for a brand new database. Static so migration tests can build a
+  /// database without going through the singleton's fixed file path.
+  static Future<void> onCreate(Database db, int version) async {
     // Create students table
     await db.execute('''
       CREATE TABLE students (
@@ -57,6 +65,7 @@ class DatabaseHelper {
         advance_amount TEXT NOT NULL,
         rent_status TEXT DEFAULT 'Pending',
         payment_mode TEXT DEFAULT '-',
+        amount_paid REAL DEFAULT 0,
         aadhar_card TEXT,
         aadhar_name TEXT,
         student_picture TEXT,
@@ -82,6 +91,9 @@ class DatabaseHelper {
         month TEXT NOT NULL,
         payment_status TEXT NOT NULL,
         payment_mode TEXT NOT NULL,
+        cash_amount REAL DEFAULT 0,
+        upi_amount REAL DEFAULT 0,
+        amount_due REAL DEFAULT 0,
         screenshot_path TEXT,
         paid_date TEXT,
         FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE
@@ -113,7 +125,8 @@ class DatabaseHelper {
 
   }
 
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  /// Steps an existing database up to the current schema version.
+  static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // Add payment_history table for version 2
       await db.execute('''
@@ -234,6 +247,28 @@ class DatabaseHelper {
       await db.execute('DELETE FROM payment_history');
       await db.execute('INSERT INTO payment_history SELECT * FROM ph_backup');
       await db.execute('DROP TABLE ph_backup');
+    }
+    if (oldVersion < 8) {
+      // Partial payments: a month's rent can now be settled across several
+      // instalments, each split between cash and UPI. students.amount_paid is
+      // the running total for the *current* month; the payment_history columns
+      // keep the same breakdown for every archived month.
+      await db.execute('ALTER TABLE students ADD COLUMN amount_paid REAL DEFAULT 0');
+      await db.execute('ALTER TABLE payment_history ADD COLUMN cash_amount REAL DEFAULT 0');
+      await db.execute('ALTER TABLE payment_history ADD COLUMN upi_amount REAL DEFAULT 0');
+      await db.execute('ALTER TABLE payment_history ADD COLUMN amount_due REAL DEFAULT 0');
+
+      // Students already marked Paid predate amount tracking. Seed them with
+      // their room's rent so the ledger doesn't read "0 of 5000 paid" for a
+      // month that was in fact settled in full. Archived history rows are left
+      // at 0 and rendered as "amount not recorded" rather than invented.
+      await db.execute('''
+        UPDATE students
+           SET amount_paid = COALESCE(
+                 (SELECT price FROM rooms WHERE rooms.room_number = students.room_number),
+                 0)
+         WHERE rent_status = 'Paid'
+      ''');
     }
   }
 

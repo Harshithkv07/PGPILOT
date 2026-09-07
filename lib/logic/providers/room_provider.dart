@@ -103,6 +103,41 @@ class RoomProvider with ChangeNotifier {
     }
   }
 
+  /// Save an edited room. Returns null on success, or a message explaining why
+  /// the edit was rejected (e.g. the new bed count is below current occupancy).
+  Future<String?> updateRoomDetails({
+    required String roomNumber,
+    required int capacity,
+    required int price,
+    required int ebBill,
+  }) async {
+    try {
+      if (capacity < 1) return 'A room needs at least 1 bed.';
+      if (price < 0) return 'Rent cannot be negative.';
+      if (ebBill < 0) return 'EB bill cannot be negative.';
+
+      final existing = await _roomRepo.getRoomByNumber(roomNumber);
+      if (existing == null) return 'Room $roomNumber no longer exists.';
+
+      final occupancy = await _studentRepo.getRoomOccupancy(roomNumber);
+      if (capacity < occupancy) {
+        return 'Room $roomNumber already has $occupancy students. '
+            'Move someone out before shrinking it to $capacity beds.';
+      }
+
+      await _roomRepo.updateRoom(existing.copyWith(
+        capacity: capacity,
+        price: price,
+        ebBill: ebBill,
+      ));
+      await loadRooms();
+      return null;
+    } catch (e) {
+      print('Error updating room $roomNumber: $e');
+      return 'Could not update room $roomNumber.';
+    }
+  }
+
   // Update room price
   Future<void> updateRoomPrice(String roomNumber, int newPrice) async {
     await _roomRepo.updateRoomPrice(roomNumber, newPrice);

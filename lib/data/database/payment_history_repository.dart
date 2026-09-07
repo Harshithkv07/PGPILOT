@@ -83,11 +83,13 @@ class PaymentHistoryRepository {
   Future<Map<String, int>> getPaymentStats(int studentId) async {
     final history = await getStudentPaymentHistory(studentId);
     final paid = history.where((p) => p.paymentStatus == 'Paid').length;
+    final partial = history.where((p) => p.paymentStatus == 'Partial').length;
     final pending = history.where((p) => p.paymentStatus == 'Pending').length;
-    
+
     return {
       'total': history.length,
       'paid': paid,
+      'partial': partial,
       'pending': pending,
     };
   }

@@ -14,6 +14,10 @@ class StudentModel {
   final String advanceAmount;
   final String rentStatus;
   final String paymentMode;
+
+  /// Rent settled so far for the *current* month, across every instalment.
+  /// Archived months keep their own totals in `payment_history`.
+  final double amountPaid;
   final String? aadharCard;
   final String? aadharName;
   final String? studentPicture;
@@ -38,6 +42,7 @@ class StudentModel {
     this.advanceAmount = '',
     this.rentStatus = 'Pending',
     this.paymentMode = '-',
+    this.amountPaid = 0,
     this.aadharCard,
     this.aadharName,
     this.studentPicture,
@@ -62,6 +67,7 @@ class StudentModel {
       'advance_amount': advanceAmount,
       'rent_status': rentStatus,
       'payment_mode': paymentMode,
+      'amount_paid': amountPaid,
       'aadhar_card': aadharCard,
       'aadhar_name': aadharName,
       'student_picture': studentPicture,
@@ -87,6 +93,7 @@ class StudentModel {
       advanceAmount: map['advance_amount'] ?? '',
       rentStatus: map['rent_status'] ?? 'Pending',
       paymentMode: map['payment_mode'] ?? '-',
+      amountPaid: (map['amount_paid'] as num?)?.toDouble() ?? 0,
       aadharCard: map['aadhar_card'],
       aadharName: map['aadhar_name'],
       studentPicture: map['student_picture'],
@@ -111,6 +118,7 @@ class StudentModel {
     String? advanceAmount,
     String? rentStatus,
     String? paymentMode,
+    double? amountPaid,
     String? aadharCard,
     String? aadharName,
     String? studentPicture,
@@ -132,6 +140,7 @@ class StudentModel {
       advanceAmount: advanceAmount ?? this.advanceAmount,
       rentStatus: rentStatus ?? this.rentStatus,
       paymentMode: paymentMode ?? this.paymentMode,
+      amountPaid: amountPaid ?? this.amountPaid,
       aadharCard: aadharCard ?? this.aadharCard,
       aadharName: aadharName ?? this.aadharName,
       studentPicture: studentPicture ?? this.studentPicture,

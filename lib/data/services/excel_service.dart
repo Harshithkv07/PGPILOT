@@ -33,6 +33,8 @@ class ExcelService {
       TextCellValue('EB Bill'),
       TextCellValue('Rent Status'),
       TextCellValue('Payment Mode'),
+      TextCellValue('Paid This Month'),
+      TextCellValue('Balance Due'),
     ]);
 
     // Add student data
@@ -58,6 +60,8 @@ class ExcelService {
         IntCellValue(room?.ebBill ?? 0),
         TextCellValue(student.rentStatus),
         TextCellValue(student.paymentMode),
+        IntCellValue(student.amountPaid.round()),
+        IntCellValue(_balanceDue(student, room)),
       ]);
     }
 
@@ -99,5 +103,13 @@ class ExcelService {
     }
 
     return filePath;
+  }
+
+  /// What a student still owes this month: room rent (EB bill excluded, since
+  /// the per-head share depends on how many people share the room) minus what
+  /// has been paid so far. Never negative.
+  int _balanceDue(StudentModel student, RoomConfigModel? room) {
+    final due = (room?.price ?? 0) - student.amountPaid;
+    return due > 0 ? due.round() : 0;
   }
 }

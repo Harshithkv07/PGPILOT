@@ -99,7 +99,7 @@ class StudentRepository {
     final db = await _dbHelper.database;
     await db.update(
       'students',
-      {'rent_status': 'Pending', 'payment_mode': '-'},
+      {'rent_status': 'Pending', 'payment_mode': '-', 'amount_paid': 0},
     );
   }
 }

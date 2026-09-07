@@ -141,6 +141,7 @@ class _RentHistoryDialogState extends State<RentHistoryDialog> {
 
   Widget _buildPaymentStats() {
     final paid = _paymentHistory.where((p) => p.paymentStatus == 'Paid').length;
+    final partial = _paymentHistory.where((p) => p.paymentStatus == 'Partial').length;
     final pending = _paymentHistory.where((p) => p.paymentStatus == 'Pending').length;
     final total = _paymentHistory.length;
 
@@ -157,25 +158,56 @@ class _RentHistoryDialogState extends State<RentHistoryDialog> {
                 centerSpaceRadius: 18,
                 sections: [
                   PieChartSectionData(value: paid == 0 ? 0.0001 : paid.toDouble(), color: AppColors.successColor, showTitle: false, radius: 12),
+                  PieChartSectionData(value: partial == 0 ? 0.0001 : partial.toDouble(), color: AppColors.warningColor, showTitle: false, radius: 12),
                   PieChartSectionData(value: pending == 0 ? 0.0001 : pending.toDouble(), color: AppColors.paymentPending, showTitle: false, radius: 12),
                 ],
               ),
             ),
           ),
           const SizedBox(width: AppSpacing.lg),
-          Expanded(child: StatChip(icon: Icons.calendar_month, label: 'Total Months', value: total, color: AppColors.primaryAccent, compact: true)),
+          Expanded(child: StatChip(icon: Icons.calendar_month, label: 'Months', value: total, color: AppColors.primaryAccent, compact: true)),
           Expanded(child: StatChip(icon: Icons.check_circle, label: 'Paid', value: paid, color: AppColors.successColor, compact: true)),
+          Expanded(child: StatChip(icon: Icons.timelapse, label: 'Partial', value: partial, color: AppColors.warningColor, compact: true)),
           Expanded(child: StatChip(icon: Icons.pending, label: 'Pending', value: pending, color: AppColors.paymentPending, compact: true)),
         ],
       ),
     );
   }
 
+  /// One-line description of a month: how much landed, how it was paid, and
+  /// what is still owed. Months archived before amounts were tracked fall back
+  /// to the plain status.
+  String _paymentSummary(PaymentHistoryModel payment) {
+    if (!payment.hasAmountDetail) {
+      switch (payment.paymentStatus) {
+        case 'Paid':
+          return 'Paid via ${payment.paymentMode}';
+        case 'Partial':
+          return 'Part paid via ${payment.paymentMode}';
+        default:
+          return 'Payment Pending';
+      }
+    }
+
+    if (payment.paymentStatus == 'Pending' || payment.amountPaid == 0) {
+      return 'Pending — ₹${payment.amountDue.round()} due';
+    }
+
+    final paid = '₹${payment.amountPaid.round()} via ${payment.paymentMode}';
+    if (payment.amountRemaining > 0) {
+      return '$paid • ₹${payment.amountRemaining.round()} still due';
+    }
+    return 'Paid $paid';
+  }
+
   Widget _buildPaymentItem(PaymentHistoryModel payment) {
     final isPaid = payment.paymentStatus == 'Paid';
+    final isPartial = payment.paymentStatus == 'Partial';
     final monthDate = DateFormat('yyyy-MM').parse(payment.month);
     final monthName = DateFormat('MMMM yyyy').format(monthDate);
-    final statusColor = isPaid ? AppColors.successColor : AppColors.paymentPending;
+    final statusColor = isPaid
+        ? AppColors.successColor
+        : (isPartial ? AppColors.warningColor : AppColors.paymentPending);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -189,7 +221,12 @@ class _RentHistoryDialogState extends State<RentHistoryDialog> {
                 color: statusColor.withValues(alpha: 0.2),
                 borderRadius: AppRadius.smBorder,
               ),
-              child: Icon(isPaid ? Icons.check_circle : Icons.pending, color: statusColor),
+              child: Icon(
+                isPaid
+                    ? Icons.check_circle
+                    : (isPartial ? Icons.timelapse : Icons.pending),
+                color: statusColor,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -200,14 +237,26 @@ class _RentHistoryDialogState extends State<RentHistoryDialog> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(isPaid ? Icons.payment : Icons.schedule, size: 14, color: AppColors.textSecondary),
+                      Icon(isPaid || isPartial ? Icons.payment : Icons.schedule,
+                          size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
-                      Text(
-                        isPaid ? 'Paid via ${payment.paymentMode}' : 'Payment Pending',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      Expanded(
+                        child: Text(
+                          _paymentSummary(payment),
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
                       ),
                     ],
                   ),
+                  // Months settled in instalments show the cash/UPI split so
+                  // the ledger explains where each rupee came from.
+                  if (payment.hasAmountDetail && payment.cashAmount > 0 && payment.upiAmount > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '₹${payment.cashAmount.round()} cash + ₹${payment.upiAmount.round()} UPI',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                  ],
                   if (payment.paidDate != null) ...[
                     const SizedBox(height: 2),
                     Text('Paid on: ${payment.paidDate}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),

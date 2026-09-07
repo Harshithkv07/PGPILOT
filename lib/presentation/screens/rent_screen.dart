@@ -8,12 +8,14 @@ import '../../logic/providers/room_provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
 import '../../core/utils/whatsapp_helper.dart';
+import '../../data/models/student_model.dart';
 import '../../data/services/file_storage_service.dart';
 import '../../data/database/payment_history_repository.dart';
 import '../widgets/common/premium_card.dart';
 import '../widgets/common/premium_button.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/compact_action_button.dart';
+import '../widgets/record_payment_dialog.dart';
 
 class RentScreen extends StatefulWidget {
   const RentScreen({super.key});
@@ -35,104 +37,96 @@ class _RentScreenState extends State<RentScreen> {
     });
   }
 
-  Future<void> _markAsPaid(int studentId, String studentName, String roomNumber) async {
-    final paymentMode = await showDialog<String>(
+  /// Collects one instalment — any mix of cash and UPI — and adds it to what
+  /// the student has already paid for the month.
+  Future<void> _recordPayment(StudentModel student) async {
+    final rentProvider = Provider.of<RentProvider>(context, listen: false);
+    final amountDue = rentProvider.amountDueFor(student);
+
+    final entry = await showDialog<PaymentEntry>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Payment Mode'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('How did the student pay?', style: TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: PremiumButton(
-                    label: 'Cash',
-                    icon: Icons.money,
-                    gradient: LinearGradient(colors: [AppColors.successColor, AppColors.successColor]),
-                    onPressed: () => Navigator.pop(context, 'Cash'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: PremiumButton(
-                    label: 'UPI',
-                    icon: Icons.qr_code,
-                    onPressed: () => Navigator.pop(context, 'UPI'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
+      builder: (context) => RecordPaymentDialog(
+        studentName: student.name,
+        roomNumber: student.roomNumber,
+        amountDue: amountDue,
+        alreadyPaid: student.amountPaid,
       ),
     );
 
-    if (paymentMode != null && mounted) {
-      String? screenshotPath;
+    if (entry == null || !mounted) return;
 
-      if (paymentMode == 'UPI') {
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.image,
-          dialogTitle: 'Select Payment Screenshot',
-        );
+    String? screenshotPath;
 
-        if (result != null && result.files.single.path != null) {
-          try {
-            final currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
-
-            screenshotPath = await _fileStorageService.savePaymentScreenshot(
-              sourcePath: result.files.single.path!,
-              studentName: studentName,
-              roomNumber: roomNumber,
-              month: currentMonth,
-            );
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error saving screenshot: $e'),
-                  backgroundColor: AppColors.errorColor,
-                ),
-              );
-            }
-          }
-        }
-      }
-
+    if (entry.hasUpi) {
+      screenshotPath = await _pickUpiScreenshot(student);
       if (!mounted) return;
-      await Provider.of<RentProvider>(context, listen: false)
-          .markAsPaid(studentId, paymentMode, screenshotPath);
+    }
 
+    final newTotal = await rentProvider.recordPayment(
+      studentId: student.id!,
+      cashAmount: entry.cashAmount,
+      upiAmount: entry.upiAmount,
+      screenshotPath: screenshotPath,
+    );
+
+    if (!mounted) return;
+
+    final settled = amountDue > 0 && newTotal >= amountDue;
+    final remaining = (amountDue - newTotal).round();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(settled
+            ? '₹${entry.total.round()} recorded — ${student.name}\'s rent is fully paid.'
+            : '₹${entry.total.round()} recorded — ₹$remaining still due from ${student.name}.'),
+        backgroundColor: settled ? AppColors.successColor : AppColors.warningColor,
+      ),
+    );
+  }
+
+  /// Optional proof for the UPI half of a payment. Returns null if the manager
+  /// skipped it or the copy failed — the payment itself is still recorded.
+  Future<String?> _pickUpiScreenshot(StudentModel student) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      dialogTitle: 'Select UPI Payment Screenshot (optional)',
+    );
+
+    if (result == null || result.files.single.path == null) return null;
+
+    try {
+      final currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
+      return await _fileStorageService.savePaymentScreenshot(
+        sourcePath: result.files.single.path!,
+        studentName: student.name,
+        roomNumber: student.roomNumber,
+        month: currentMonth,
+      );
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(screenshotPath != null
-                ? 'Payment marked as paid with screenshot'
-                : 'Payment marked as paid'),
-            backgroundColor: AppColors.successColor,
+            content: Text('Error saving screenshot: $e'),
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
+      return null;
     }
   }
 
-  Future<void> _revertToPending(int studentId, String studentName) async {
+  Future<void> _revertToPending(StudentModel student) async {
+    final paid = student.amountPaid.round();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Revert Payment Status'),
+        title: const Text('Clear This Month\'s Payments'),
         content: Text(
-            'Are you sure you want to revert $studentName\'s payment status to Pending? This will delete the payment record for the current month.'),
+          paid > 0
+              ? 'This wipes the ₹$paid recorded against ${student.name} this month and puts them back to Pending. Continue?'
+              : 'Put ${student.name} back to Pending for this month?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -141,18 +135,18 @@ class _RentScreenState extends State<RentScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Revert'),
+            child: const Text('Clear'),
           ),
         ],
       ),
     );
 
     if (confirmed == true && mounted) {
-      await Provider.of<RentProvider>(context, listen: false).revertToPending(studentId);
+      await Provider.of<RentProvider>(context, listen: false).revertToPending(student.id!);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Payment status reverted to pending'),
+            content: Text('Payments cleared. Status reverted to pending.'),
             backgroundColor: AppColors.successColor,
           ),
         );
@@ -208,7 +202,7 @@ class _RentScreenState extends State<RentScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Start New Month'),
         content: const Text(
-          'This will reset all rent statuses to "Pending" and clear payment modes. Are you sure?',
+          'This archives the current month and resets every student to "Pending" with ₹0 paid. Are you sure?',
         ),
         actions: [
           TextButton(
@@ -264,6 +258,17 @@ class _RentScreenState extends State<RentScreen> {
     );
   }
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Paid':
+        return AppColors.paymentPaid;
+      case 'Partial':
+        return AppColors.warningColor;
+      default:
+        return AppColors.paymentPending;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -278,55 +283,47 @@ class _RentScreenState extends State<RentScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Revenue Tracker
-              Consumer2<RentProvider, RoomProvider>(
-                builder: (context, rentProvider, roomProvider, _) {
-                  return FutureBuilder<List<int>>(
-                    future: Future.wait([
-                      rentProvider.getCollectedRevenue(),
-                      rentProvider.getPotentialRevenue(),
-                    ]),
-                    builder: (context, snapshot) {
-                      final collected = snapshot.data?[0] ?? 0;
-                      final potential = snapshot.data?[1] ?? 0;
-                      final pending = (potential - collected).clamp(0, potential == 0 ? 0 : potential);
-                      final percentage = potential > 0 ? (collected / potential) : 0.0;
+              Consumer<RentProvider>(
+                builder: (context, rentProvider, _) {
+                  final collected = rentProvider.getCollectedRevenue();
+                  final potential = rentProvider.getPotentialRevenue();
+                  final pending = (potential - collected).clamp(0, potential);
+                  final percentage = potential > 0 ? (collected / potential) : 0.0;
 
-                      return PremiumCard(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  return PremiumCard(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Monthly Revenue Tracker',
+                          style: TextStyle(fontFamily: 'Sora', fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        Row(
                           children: [
-                            const Text(
-                              'Monthly Revenue Tracker',
-                              style: TextStyle(fontFamily: 'Sora', fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            _CollectionRing(
+                              collected: collected,
+                              pending: pending,
+                              percentage: percentage,
                             ),
-                            const SizedBox(height: AppSpacing.xl),
-                            Row(
-                              children: [
-                                _CollectionRing(
-                                  collected: collected,
-                                  pending: pending,
-                                  percentage: percentage,
-                                ),
-                                const SizedBox(width: AppSpacing.xl),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _amountRow('Collected', collected, AppColors.successColor),
-                                      const SizedBox(height: AppSpacing.md),
-                                      _amountRow('Pending', pending, AppColors.paymentPending),
-                                      const Divider(height: AppSpacing.xl),
-                                      _amountRow('Potential', potential, AppColors.primaryAccent),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(width: AppSpacing.xl),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _amountRow('Collected', collected, AppColors.successColor),
+                                  const SizedBox(height: AppSpacing.md),
+                                  _amountRow('Pending', pending, AppColors.paymentPending),
+                                  const Divider(height: AppSpacing.xl),
+                                  _amountRow('Potential', potential, AppColors.primaryAccent),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   );
                 },
               ),
@@ -366,14 +363,15 @@ class _RentScreenState extends State<RentScreen> {
                   return Column(
                     children: students.map((student) {
                       final room = roomProvider.getRoomByNumber(student.roomNumber);
-                      final roomStudents = students.where((s) => s.roomNumber == student.roomNumber).length;
-                      int ebShare = 0;
-                      if (room != null && roomStudents > 0 && room.ebBill > 0) {
-                        ebShare = (room.ebBill / roomStudents).round();
-                      }
-                      final amountDue = (room?.price ?? 0) + ebShare;
+                      final amountDue = rentProvider.amountDueFor(student);
+                      final ebShare = amountDue - (room?.price ?? amountDue);
+                      final paid = student.amountPaid;
+                      final remaining = rentProvider.amountRemainingFor(student);
                       final isPaid = student.rentStatus == 'Paid';
-                      final statusColor = isPaid ? AppColors.paymentPaid : AppColors.paymentPending;
+                      final isPartial = student.rentStatus == 'Partial';
+                      final statusColor = _statusColor(student.rentStatus);
+                      final progress =
+                          amountDue > 0 ? (paid / amountDue).clamp(0.0, 1.0) : 0.0;
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -418,6 +416,48 @@ class _RentScreenState extends State<RentScreen> {
                                 ],
                               ),
                               const SizedBox(height: AppSpacing.md),
+
+                              // Part payments only make sense against a visible
+                              // running total, so show paid-of-due plus a bar.
+                              if (paid > 0) ...[
+                                Row(
+                                  children: [
+                                    Text(
+                                      '₹${paid.round()}',
+                                      style: TextStyle(
+                                        fontFamily: 'Sora',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 18,
+                                        color: isPaid ? AppColors.successColor : AppColors.warningColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      ' of ₹$amountDue',
+                                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                    ),
+                                    const Spacer(),
+                                    if (remaining > 0)
+                                      Text(
+                                        '₹$remaining due',
+                                        style: const TextStyle(fontSize: 12, color: AppColors.paymentPending),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    minHeight: 6,
+                                    backgroundColor: AppColors.borderColor,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      isPaid ? AppColors.successColor : AppColors.warningColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
@@ -425,14 +465,13 @@ class _RentScreenState extends State<RentScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text('₹$amountDue',
-                                            style: const TextStyle(fontFamily: 'Sora', fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.textPrimary)),
+                                        if (paid == 0)
+                                          Text('₹$amountDue',
+                                              style: const TextStyle(fontFamily: 'Sora', fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.textPrimary)),
                                         if (ebShare > 0)
                                           Text('₹${room?.price ?? 0} + ₹$ebShare EB',
                                               style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                                        if (!isPaid || student.paymentMode == '-')
-                                          const SizedBox.shrink()
-                                        else
+                                        if (student.paymentMode != '-')
                                           Text('via ${student.paymentMode}',
                                               style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                                       ],
@@ -440,24 +479,34 @@ class _RentScreenState extends State<RentScreen> {
                                   ),
                                   if (!isPaid) ...[
                                     CompactActionButton(
-                                      icon: Icons.check_circle_outline,
+                                      icon: isPartial ? Icons.add_card : Icons.check_circle_outline,
                                       color: AppColors.successColor,
-                                      tooltip: 'Mark as Paid',
-                                      onPressed: () => _markAsPaid(student.id!, student.name, student.roomNumber),
+                                      tooltip: isPartial ? 'Record another payment' : 'Record payment',
+                                      onPressed: () => _recordPayment(student),
                                     ),
                                     const SizedBox(width: 8),
                                     CompactActionButton(
                                       icon: Icons.message_outlined,
                                       color: AppColors.primaryAccent,
                                       tooltip: 'Send Reminder',
-                                      onPressed: () => _sendReminder(student.contact, student.name, student.roomNumber, amountDue),
+                                      onPressed: () => _sendReminder(
+                                          student.contact, student.name, student.roomNumber, remaining > 0 ? remaining : amountDue),
                                     ),
+                                    if (isPartial) ...[
+                                      const SizedBox(width: 8),
+                                      CompactActionButton(
+                                        icon: Icons.undo_rounded,
+                                        color: AppColors.errorColor,
+                                        tooltip: 'Clear this month\'s payments',
+                                        onPressed: () => _revertToPending(student),
+                                      ),
+                                    ],
                                   ] else ...[
                                     CompactActionButton(
                                       icon: Icons.undo_rounded,
                                       color: AppColors.errorColor,
-                                      tooltip: 'Revert to Pending',
-                                      onPressed: () => _revertToPending(student.id!, student.name),
+                                      tooltip: 'Clear this month\'s payments',
+                                      onPressed: () => _revertToPending(student),
                                     ),
                                     const SizedBox(width: 8),
                                     CompactActionButton(

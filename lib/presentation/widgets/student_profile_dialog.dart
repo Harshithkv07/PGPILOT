@@ -160,6 +160,7 @@ class _StudentProfileDialogState extends State<StudentProfileDialog> {
                     InfoRow(label: 'Student Picture', value: _currentStudent.studentPictureName != null ? 'Attached' : 'Pending'),
                     InfoRow(label: 'Rent Status', value: _currentStudent.rentStatus),
                     InfoRow(label: 'Payment Mode', value: _currentStudent.paymentMode),
+                    InfoRow(label: 'Paid This Month', value: '₹${_currentStudent.amountPaid.round()}'),
                   ],
                 ),
               ),
