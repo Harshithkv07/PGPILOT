@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/models/daily_account_model.dart';
 import '../../data/database/accounts_repository.dart';
-import '../../data/database/database_helper.dart';
 
 class AccountsProvider with ChangeNotifier {
   final AccountsRepository _repo = AccountsRepository();
@@ -29,7 +28,10 @@ class AccountsProvider with ChangeNotifier {
     return _todayAccount!.openingBalance - totalExpensesToday;
   }
 
-  bool get isDayClosed => _todayAccount?.isDayClosed ?? false;
+  /// The day's running balance: what it opened with, less what has been spent.
+  /// Days are never "closed" — this is always live, for today and for any past
+  /// day the user browses back to.
+  double get closingBalance => remainingBalance;
 
   /// Load account and expenses for the selected date.
   Future<void> loadDay([DateTime? date]) async {
@@ -45,10 +47,10 @@ class AccountsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get previous day's closing balance (for carry-forward suggestion).
+  /// The closing balance of the last day on record before the selected one,
+  /// offered as the opening balance when starting a new day.
   Future<double?> getPreviousClosingBalance() async {
-    final prev = await _repo.getPreviousClosedDay(selectedDateStr);
-    return prev?.closingBalance;
+    return _repo.getPreviousClosingBalance(selectedDateStr);
   }
 
   /// Get previous day (closed or open).
@@ -109,52 +111,17 @@ class AccountsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Close the day: compute closing balance and mark as closed.
-  Future<void> closeDay() async {
-    if (_todayAccount == null) return;
-
-    final total = await _repo.getTotalExpensesForDate(selectedDateStr);
-    final closingBalance = _todayAccount!.openingBalance - total;
-
-    final updated = _todayAccount!.copyWith(
-      closingBalance: closingBalance,
-      isDayClosed: true,
-    );
-    await _repo.updateDailyAccount(updated);
-    _todayAccount = updated;
-    notifyListeners();
-  }
-
-  /// Reopen a closed day (undo close, same day only).
-  Future<void> reopenDay() async {
-    if (_todayAccount == null || !_todayAccount!.isDayClosed) return;
-
-    final updated = _todayAccount!.copyWith(
-      closingBalance: null,
-      isDayClosed: false,
-    );
-    // We need to handle null closingBalance in update
-    final db = await DatabaseHelper().database;
-    await db.update(
-      'daily_accounts',
-      {
-        'closing_balance': null,
-        'is_day_closed': 0,
-      },
-      where: 'id = ?',
-      whereArgs: [_todayAccount!.id],
-    );
-    _todayAccount = DailyAccountModel(
-      id: updated.id,
-      date: updated.date,
-      openingBalance: updated.openingBalance,
-      closingBalance: null,
-      isDayClosed: false,
-    );
-    notifyListeners();
-  }
-
   // ─── Navigation ───
+
+  /// Jump straight to a date instead of stepping a day at a time. Future
+  /// dates are ignored — there is nothing to record against them yet.
+  void goToDate(DateTime date) {
+    final now = DateTime.now();
+    final target = DateTime(date.year, date.month, date.day);
+    final today = DateTime(now.year, now.month, now.day);
+    if (target.isAfter(today)) return;
+    loadDay(target);
+  }
 
   void goToPreviousDay() {
     _selectedDate = _selectedDate.subtract(const Duration(days: 1));
@@ -197,5 +164,22 @@ class AccountsProvider with ChangeNotifier {
   Future<List<DailyAccountModel>> getDailyAccountsForMonth(
       [String? month]) async {
     return _repo.getDailyAccountsForMonth(month ?? selectedMonthStr);
+  }
+
+  /// Each recorded day's closing balance for the month, oldest first.
+  ///
+  /// Closing balances are derived (opening less that day's spend) instead of
+  /// stored, so the trend covers every day that has an opening balance rather
+  /// than only days someone remembered to close.
+  Future<List<double>> getMonthlyClosingTrend([String? month]) async {
+    final target = month ?? selectedMonthStr;
+    final accounts = await _repo.getDailyAccountsForMonth(target);
+    final spentByDate = await _repo.getExpenseTotalsByDate(target);
+
+    final sorted = [...accounts]..sort((a, b) => a.date.compareTo(b.date));
+    return [
+      for (final account in sorted)
+        account.openingBalance - (spentByDate[account.date] ?? 0),
+    ];
   }
 }

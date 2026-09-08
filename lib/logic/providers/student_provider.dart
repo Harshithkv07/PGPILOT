@@ -3,6 +3,7 @@ import '../../data/models/student_model.dart';
 import '../../data/models/room_config_model.dart';
 import '../../data/database/student_repository.dart';
 import '../../data/database/room_repository.dart';
+import '../../data/database/payment_history_repository.dart';
 import '../../data/services/student_import_service.dart';
 
 /// Outcome of a CSV import, so the UI can tell the user exactly what happened.
@@ -17,6 +18,7 @@ class ImportResult {
 class StudentProvider with ChangeNotifier {
   final StudentRepository _studentRepo = StudentRepository();
   final RoomRepository _roomRepo = RoomRepository();
+  final PaymentHistoryRepository _paymentHistoryRepo = PaymentHistoryRepository();
   
   List<StudentModel> _students = [];
   List<StudentModel> _filteredStudents = [];
@@ -43,30 +45,29 @@ class StudentProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Add student with room capacity validation
-  Future<bool> addStudent(StudentModel student) async {
+  /// Add a student, checking the room exists and has a free bed.
+  ///
+  /// Returns null on success, or the reason it was refused — "room is full"
+  /// and "no such room" are different problems and used to surface the same
+  /// misleading capacity message.
+  Future<String?> addStudent(StudentModel student) async {
     try {
-      // Check room capacity
       final room = await _roomRepo.getRoomByNumber(student.roomNumber);
       if (room == null) {
-        print('Room ${student.roomNumber} does not exist');
-        return false; // Room doesn't exist
+        return 'Room ${student.roomNumber} does not exist. Add it on the Dashboard first.';
       }
-      
+
       final currentOccupancy = await _studentRepo.getRoomOccupancy(student.roomNumber);
       if (currentOccupancy >= room.capacity) {
-        print('Room ${student.roomNumber} is full (${currentOccupancy}/${room.capacity})');
-        return false; // Room is full
+        return 'Room ${student.roomNumber} is full ($currentOccupancy of ${room.capacity} beds taken).';
       }
-      
-      // Add student
-      final id = await _studentRepo.insertStudent(student);
-      print('Student added successfully with ID: $id');
+
+      await _studentRepo.insertStudent(student);
       await loadStudents();
-      return true;
+      return null;
     } catch (e) {
-      print('Error adding student: $e');
-      return false;
+      debugPrint('Error adding student: $e');
+      return 'Could not add student.';
     }
   }
 
@@ -130,14 +131,124 @@ class StudentProvider with ChangeNotifier {
     return ImportResult(added: added, roomsCreated: created, skipped: skipped);
   }
 
-  // Update student
-  Future<void> updateStudent(StudentModel student) async {
-    await _studentRepo.updateStudent(student);
-    await loadStudents();
+  /// Save an edited student. Returns null on success, or a message explaining
+  /// why the edit was rejected.
+  ///
+  /// Adding a student has always checked room capacity, but editing one did
+  /// not — so changing a room number here could put a fifth person in a
+  /// four-bed room, or move them into a room that does not exist (which then
+  /// bills them nothing). The check only runs when the room actually changes,
+  /// so unrelated edits to someone already in an over-full room still save.
+  Future<String?> updateStudent(StudentModel student) async {
+    try {
+      final current = await _studentRepo.getStudentById(student.id!);
+      final movingRoom = current != null && current.roomNumber != student.roomNumber;
+
+      if (movingRoom) {
+        final room = await _roomRepo.getRoomByNumber(student.roomNumber);
+        if (room == null) {
+          return 'Room ${student.roomNumber} does not exist.';
+        }
+        final occupancy = await _studentRepo.getRoomOccupancy(student.roomNumber);
+        if (occupancy >= room.capacity) {
+          return 'Room ${student.roomNumber} is full (${room.capacity} beds).';
+        }
+      }
+
+      await _studentRepo.updateStudent(student);
+      await loadStudents();
+      return null;
+    } catch (e) {
+      debugPrint('Error updating student: $e');
+      return 'Could not save changes.';
+    }
   }
 
-  // Delete student
+  /// Move [studentId] into [toRoom]. Returns null on success, or the reason it
+  /// was refused.
+  ///
+  /// Rent for the current month is recharged at the new room's rate, so a
+  /// student who had fully paid a cheaper room becomes Partial rather than
+  /// silently under-billed. Both rooms are recomputed because moving someone
+  /// also changes how the EB bill splits for everyone left behind.
+  Future<String?> moveStudent(int studentId, String toRoom) async {
+    try {
+      final student = await _studentRepo.getStudentById(studentId);
+      if (student == null) return 'That student no longer exists.';
+      if (student.roomNumber == toRoom) return null;
+
+      final room = await _roomRepo.getRoomByNumber(toRoom);
+      if (room == null) return 'Room $toRoom does not exist.';
+
+      final occupancy = await _studentRepo.getRoomOccupancy(toRoom);
+      if (occupancy >= room.capacity) {
+        return 'Room $toRoom is full ($occupancy of ${room.capacity} beds taken).';
+      }
+
+      final fromRoom = student.roomNumber;
+      await _studentRepo.updateStudent(student.copyWith(roomNumber: toRoom));
+      await _recomputeRentStatusFor({fromRoom, toRoom});
+      await loadStudents();
+      return null;
+    } catch (e) {
+      debugPrint('Error moving student: $e');
+      return 'Could not move that student.';
+    }
+  }
+
+  /// Exchange the rooms of two students. Used when the destination is full but
+  /// the manager wants them to trade places anyway.
+  Future<String?> swapStudents(int firstId, int secondId) async {
+    try {
+      final first = await _studentRepo.getStudentById(firstId);
+      final second = await _studentRepo.getStudentById(secondId);
+      if (first == null || second == null) return 'One of those students no longer exists.';
+      if (first.roomNumber == second.roomNumber) {
+        return 'Both students are already in room ${first.roomNumber}.';
+      }
+
+      await _studentRepo.swapRooms(
+          firstId, second.roomNumber, secondId, first.roomNumber);
+      await _recomputeRentStatusFor({first.roomNumber, second.roomNumber});
+      await loadStudents();
+      return null;
+    } catch (e) {
+      debugPrint('Error swapping students: $e');
+      return 'Could not swap those students.';
+    }
+  }
+
+  /// Re-derive Paid / Partial / Pending for everyone in [rooms] against what
+  /// their room now costs, EB share included.
+  Future<void> _recomputeRentStatusFor(Set<String> rooms) async {
+    for (final roomNumber in rooms) {
+      final room = await _roomRepo.getRoomByNumber(roomNumber);
+      if (room == null) continue;
+
+      final occupants = await _studentRepo.getStudentsByRoom(roomNumber);
+      if (occupants.isEmpty) continue;
+
+      final ebShare = room.ebBill > 0 ? (room.ebBill / occupants.length).round() : 0;
+      final due = room.price + ebShare;
+
+      for (final occupant in occupants) {
+        final status = occupant.amountPaid <= 0
+            ? 'Pending'
+            : (due > 0 && occupant.amountPaid >= due ? 'Paid' : 'Partial');
+        if (status != occupant.rentStatus) {
+          await _studentRepo.updateStudent(occupant.copyWith(rentStatus: status));
+        }
+      }
+    }
+  }
+
+  /// Delete a student and the rent history that belongs to them.
+  ///
+  /// payment_history declares ON DELETE CASCADE, but sqflite leaves foreign
+  /// keys off by default, so those rows were never actually removed — they
+  /// piled up pointing at students who no longer exist.
   Future<void> deleteStudent(int id) async {
+    await _paymentHistoryRepo.deleteStudentPaymentHistory(id);
     await _studentRepo.deleteStudent(id);
     await loadStudents();
   }

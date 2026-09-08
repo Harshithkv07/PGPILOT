@@ -74,6 +74,18 @@ class StudentRepository {
     );
   }
 
+  /// Move two students into each other's rooms in one transaction, so a swap
+  /// can never half-apply and leave a room over its capacity.
+  Future<void> swapRooms(int firstId, String firstRoom, int secondId, String secondRoom) async {
+    final db = await _dbHelper.database;
+    await db.transaction((txn) async {
+      await txn.update('students', {'room_number': firstRoom},
+          where: 'id = ?', whereArgs: [firstId]);
+      await txn.update('students', {'room_number': secondRoom},
+          where: 'id = ?', whereArgs: [secondId]);
+    });
+  }
+
   // Delete student
   Future<int> deleteStudent(int id) async {
     final db = await _dbHelper.database;

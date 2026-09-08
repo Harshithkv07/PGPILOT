@@ -32,15 +32,20 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   void _checkDaySetup() {
+    if (!mounted) return;
     final provider = Provider.of<AccountsProvider>(context, listen: false);
     if (provider.todayAccount == null && provider.isToday) {
       _showOpeningBalanceDialog(isFirstTime: true);
     }
   }
 
+  /// Opening-balance entry. Works for any day the user has navigated to, so a
+  /// day that was missed can be filled in after the fact.
   void _showOpeningBalanceDialog({bool isFirstTime = false}) async {
     final provider = Provider.of<AccountsProvider>(context, listen: false);
     final prevBalance = await provider.getPreviousClosingBalance();
+    final isToday = provider.isToday;
+    final dayLabel = DateFormat('EEE, dd MMM').format(provider.selectedDate);
     final controller = TextEditingController(
       text: prevBalance?.toStringAsFixed(2) ?? '',
     );
@@ -49,19 +54,40 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
     showDialog(
       context: context,
-      barrierDismissible: !isFirstTime,
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
             const Icon(Icons.account_balance_wallet, color: AppColors.primaryAccent),
             const SizedBox(width: 10),
-            const Text('Opening Balance'),
+            const Expanded(child: Text('Opening Balance')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (!isToday)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.warningColor.withValues(alpha: 0.1),
+                  borderRadius: AppRadius.mdBorder,
+                  border: Border.all(color: AppColors.warningColor.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history, size: 18, color: AppColors.warningColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Recording for $dayLabel, not today.',
+                        style: const TextStyle(color: AppColors.warningColor, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (prevBalance != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -77,7 +103,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Yesterday\'s closing: ₹${prevBalance.toStringAsFixed(2)}',
+                        'Previous day ended at ${_money(prevBalance)}',
                         style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
@@ -96,18 +122,19 @@ class _AccountsScreenState extends State<AccountsScreen> {
           ],
         ),
         actions: [
-          if (!isFirstTime)
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
+          // Always escapable — the empty state offers the same action, so the
+          // app is never blocked behind this dialog on launch.
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           if (isFirstTime && prevBalance != null)
             TextButton(
               onPressed: () {
                 provider.setOpeningBalance(prevBalance);
                 Navigator.pop(ctx);
               },
-              child: const Text('Use Yesterday\'s'),
+              child: const Text('Carry Forward'),
             ),
           ElevatedButton.icon(
             onPressed: () {
@@ -130,6 +157,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
     final amountCtrl = TextEditingController(text: existing?.amount.toStringAsFixed(2) ?? '');
     final noteCtrl = TextEditingController(text: existing?.note ?? '');
     String selectedCategory = existing?.category ?? ExpenseModel.categories[0];
+    final isToday = provider.isToday;
+    final dayLabel = DateFormat('EEE, dd MMM').format(provider.selectedDate);
 
     showDialog(
       context: context,
@@ -139,13 +168,37 @@ class _AccountsScreenState extends State<AccountsScreen> {
             children: [
               Icon(existing == null ? Icons.add_circle : Icons.edit, color: AppColors.goldAccent),
               const SizedBox(width: 10),
-              Text(existing == null ? 'Add Expense' : 'Edit Expense'),
+              Expanded(child: Text(existing == null ? 'Add Expense' : 'Edit Expense')),
             ],
           ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Backdating is allowed, so say plainly which day is being
+                // written to whenever it is not today.
+                if (!isToday)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.warningColor.withValues(alpha: 0.1),
+                      borderRadius: AppRadius.smBorder,
+                      border: Border.all(color: AppColors.warningColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history, size: 16, color: AppColors.warningColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Adding to $dayLabel',
+                            style: const TextStyle(color: AppColors.warningColor, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 TextField(
                   controller: amountCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -220,89 +273,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  void _confirmCloseDay() {
-    final provider = Provider.of<AccountsProvider>(context, listen: false);
+  static String _money(double amount) => '₹${amount.toStringAsFixed(2)}';
 
-    showDialog(
+  Future<void> _pickDate(AccountsProvider provider) async {
+    final picked = await showDatePicker(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.lock_clock, color: AppColors.goldAccent),
-            const SizedBox(width: 10),
-            const Text('Close Day'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _summaryRow('Opening Balance', '₹${provider.todayAccount!.openingBalance.toStringAsFixed(2)}'),
-            _summaryRow('Total Expenses', '- ₹${provider.totalExpensesToday.toStringAsFixed(2)}', color: AppColors.errorColor),
-            const Divider(color: AppColors.borderColor),
-            _summaryRow(
-              'Closing Balance',
-              '₹${provider.remainingBalance.toStringAsFixed(2)}',
-              color: provider.remainingBalance >= 0 ? AppColors.successColor : AppColors.errorColor,
-              bold: true,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.goldAccent.withValues(alpha: 0.1),
-                borderRadius: AppRadius.smBorder,
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: AppColors.goldAccent, size: 18),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'This closing balance will be suggested as tomorrow\'s opening balance.',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.goldAccent, foregroundColor: Colors.black),
-            onPressed: () {
-              provider.closeDay();
-              Navigator.pop(ctx);
-            },
-            child: const Text('Confirm & Close'),
-          ),
-        ],
-      ),
+      initialDate: provider.selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      helpText: 'Jump to a day',
     );
-  }
-
-  Widget _summaryRow(String label, String value, {Color? color, bool bold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
-          Text(
-            value,
-            style: TextStyle(
-              color: color ?? AppColors.textPrimary,
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              fontSize: bold ? 18 : 14,
-            ),
-          ),
-        ],
-      ),
-    );
+    if (picked != null) provider.goToDate(picked);
   }
 
   @override
@@ -342,29 +323,52 @@ class _AccountsScreenState extends State<AccountsScreen> {
           IconButton(
             onPressed: () => provider.goToPreviousDay(),
             icon: const Icon(Icons.chevron_left, color: AppColors.primaryAccent),
+            tooltip: 'Previous day',
           ),
+          // The date itself is the control for jumping to any past day, rather
+          // than stepping back one chevron press at a time.
           Expanded(
-            child: Column(
-              children: [
-                Text(
-                  dateStr,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                  textAlign: TextAlign.center,
+            child: InkWell(
+              onTap: () => _pickDate(provider),
+              borderRadius: AppRadius.mdBorder,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          dateStr,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.expand_more, size: 18, color: AppColors.primaryAccent),
+                      ],
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (isToday ? AppColors.primaryAccent : AppColors.warningColor)
+                            .withValues(alpha: 0.2),
+                        borderRadius: AppRadius.smBorder,
+                      ),
+                      child: Text(
+                        isToday ? 'TODAY' : 'PAST DAY',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isToday ? AppColors.primaryAccent : AppColors.warningColor,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                if (isToday)
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryAccent.withValues(alpha: 0.2),
-                      borderRadius: AppRadius.smBorder,
-                    ),
-                    child: const Text(
-                      'TODAY',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryAccent, letterSpacing: 1),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
           IconButton(
@@ -373,29 +377,41 @@ class _AccountsScreenState extends State<AccountsScreen> {
               Icons.chevron_right,
               color: provider.canGoToNextDay ? AppColors.primaryAccent : AppColors.textMuted,
             ),
+            tooltip: 'Next day',
           ),
+          if (!isToday)
+            IconButton(
+              onPressed: () => provider.goToDate(DateTime.now()),
+              icon: const Icon(Icons.today, color: AppColors.primaryAccent),
+              tooltip: 'Back to today',
+            ),
         ],
       ),
     );
   }
 
   Widget _buildNoAccountView(AccountsProvider provider) {
+    final dayLabel = DateFormat('EEE, dd MMM').format(provider.selectedDate);
+
+    // A day that was never started can now be filled in whenever it was —
+    // past days are no longer read-only.
     return EmptyState(
       icon: Icons.account_balance_wallet_outlined,
-      title: provider.isToday ? 'No account started for today' : 'No account record for this day',
-      action: provider.isToday
-          ? ElevatedButton.icon(
-              onPressed: () => _showOpeningBalanceDialog(isFirstTime: true),
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start Day'),
-            )
-          : null,
+      title: provider.isToday
+          ? 'No account started for today'
+          : 'No account recorded for $dayLabel',
+      subtitle: provider.isToday
+          ? 'Set an opening balance to start tracking.'
+          : 'You can still fill this day in.',
+      action: ElevatedButton.icon(
+        onPressed: () => _showOpeningBalanceDialog(isFirstTime: true),
+        icon: Icon(provider.isToday ? Icons.play_arrow : Icons.edit_calendar),
+        label: Text(provider.isToday ? 'Start Day' : 'Record This Day'),
+      ),
     );
   }
 
   Widget _buildDayView(AccountsProvider provider) {
-    final isClosed = provider.isDayClosed;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -409,14 +425,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   provider.todayAccount!.openingBalance,
                   Icons.account_balance,
                   AppColors.primaryAccent,
-                  onEdit: isClosed ? null : () => _showOpeningBalanceDialog(),
+                  onEdit: () => _showOpeningBalanceDialog(),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildBalanceCard(
                   'Remaining',
-                  isClosed ? provider.todayAccount!.closingBalance ?? 0 : provider.remainingBalance,
+                  provider.remainingBalance,
                   Icons.savings,
                   provider.remainingBalance >= 0 ? AppColors.successColor : AppColors.errorColor,
                 ),
@@ -433,10 +449,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total Spent Today', style: TextStyle(color: AppColors.textSecondary)),
                 Text(
-                  '₹${provider.totalExpensesToday.toStringAsFixed(2)}',
-                  style: const TextStyle(color: AppColors.errorColor, fontSize: 18, fontWeight: FontWeight.bold),
+                  provider.isToday ? 'Total Spent Today' : 'Total Spent This Day',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                Text(
+                  _money(provider.totalExpensesToday),
+                  style: const TextStyle(
+                      color: AppColors.errorColor, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -446,48 +466,21 @@ class _AccountsScreenState extends State<AccountsScreen> {
           _BalanceSparkline(provider: provider),
           const SizedBox(height: 16),
 
-          if (isClosed)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: AppColors.goldAccent.withValues(alpha: 0.1),
-                borderRadius: AppRadius.mdBorder,
-                border: Border.all(color: AppColors.goldAccent.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: AppColors.goldAccent),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'This day has been closed',
-                      style: TextStyle(color: AppColors.goldAccent, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  if (provider.isToday)
-                    TextButton(
-                      onPressed: () => provider.reopenDay(),
-                      child: const Text('Undo', style: TextStyle(color: AppColors.goldAccent)),
-                    ),
-                ],
-              ),
-            ),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Expenses (${provider.expenses.length})',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
-              if (!isClosed)
-                ElevatedButton.icon(
-                  onPressed: () => _showAddExpenseDialog(),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-                ),
+              ElevatedButton.icon(
+                onPressed: () => _showAddExpenseDialog(),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add'),
+                style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -498,31 +491,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
               child: EmptyState(icon: Icons.receipt_long, title: 'No expenses yet'),
             )
           else
-            ...provider.expenses.map((e) => _buildExpenseTile(e, isClosed)),
-
-          if (!isClosed && provider.todayAccount != null) ...[
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _confirmCloseDay(),
-                icon: const Icon(Icons.lock_outline),
-                label: const Text('Close Day & Calculate'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.goldAccent,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
+            ...provider.expenses.map(_buildExpenseTile),
         ],
       ),
     );
   }
 
-  Widget _buildBalanceCard(String label, double amount, IconData icon, Color color, {VoidCallback? onEdit}) {
+  Widget _buildBalanceCard(String label, double amount, IconData icon, Color color,
+      {VoidCallback? onEdit}) {
     return PremiumCard(
       borderColor: color.withValues(alpha: 0.3),
       boxShadow: [
@@ -538,14 +514,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
               if (onEdit != null)
                 InkWell(
                   onTap: onEdit,
-                  child: const Icon(Icons.edit, color: AppColors.textMuted, size: 16),
+                  borderRadius: AppRadius.smBorder,
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.edit, color: AppColors.textSecondary, size: 16),
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            '₹${amount.toStringAsFixed(2)}',
-            style: TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: color),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _money(amount),
+              style: TextStyle(
+                  fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: color),
+            ),
           ),
           const SizedBox(height: 4),
           Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
@@ -554,12 +539,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Widget _buildExpenseTile(ExpenseModel expense, bool isClosed) {
+  Widget _buildExpenseTile(ExpenseModel expense) {
     final timeStr = expense.createdAt.length >= 16 ? expense.createdAt.substring(11, 16) : '';
 
     return Dismissible(
       key: Key('expense-${expense.id}'),
-      direction: isClosed ? DismissDirection.none : DismissDirection.endToStart,
+      direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -570,6 +555,29 @@ class _AccountsScreenState extends State<AccountsScreen> {
         ),
         child: const Icon(Icons.delete, color: AppColors.errorColor),
       ),
+      confirmDismiss: (_) async {
+        // Swipe-to-delete is easy to trigger by accident on a phone, and an
+        // expense deleted silently is money that quietly vanishes.
+        return await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Delete Expense'),
+                content: Text(
+                    'Remove ${expense.category} of ${_money(expense.amount)} from this day?'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Delete'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+      },
       onDismissed: (_) {
         Provider.of<AccountsProvider>(context, listen: false).deleteExpense(expense.id!);
       },
@@ -577,7 +585,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         padding: const EdgeInsets.only(bottom: 10),
         child: PremiumCard(
           padding: const EdgeInsets.all(14),
-          onTap: isClosed ? null : () => _showAddExpenseDialog(expense),
+          onTap: () => _showAddExpenseDialog(expense),
           child: Row(
             children: [
               Container(
@@ -587,7 +595,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   color: CategoryStyles.color(expense.category).withValues(alpha: 0.15),
                   borderRadius: AppRadius.smBorder,
                 ),
-                child: Icon(CategoryStyles.icon(expense.category), color: CategoryStyles.color(expense.category), size: 20),
+                child: Icon(CategoryStyles.icon(expense.category),
+                    color: CategoryStyles.color(expense.category), size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -596,7 +605,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   children: [
                     Text(
                       expense.category,
-                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -614,8 +624,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '- ₹${expense.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(color: AppColors.errorColor, fontWeight: FontWeight.bold, fontSize: 15),
+                    '- ${_money(expense.amount)}',
+                    style: const TextStyle(
+                        color: AppColors.errorColor, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   if (timeStr.isNotEmpty)
                     Text(timeStr, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
@@ -631,6 +642,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
 /// Small sparkline of the current month's daily closing balances —
 /// gives the accounts screen a quick trend visual instead of only numbers.
+///
+/// Closing balances are derived (opening less that day's spend) rather than
+/// stored, so the trend fills in as soon as a day has an opening balance.
 class _BalanceSparkline extends StatelessWidget {
   final AccountsProvider provider;
 
@@ -638,18 +652,14 @@ class _BalanceSparkline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: provider.getDailyAccountsForMonth(),
+    return FutureBuilder<List<double>>(
+      future: provider.getMonthlyClosingTrend(),
       builder: (context, snapshot) {
-        final accounts = (snapshot.data ?? [])
-            .where((a) => a.closingBalance != null)
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-
-        if (accounts.length < 2) return const SizedBox.shrink();
+        final balances = snapshot.data ?? const <double>[];
+        if (balances.length < 2) return const SizedBox.shrink();
 
         final spots = <FlSpot>[
-          for (var i = 0; i < accounts.length; i++) FlSpot(i.toDouble(), accounts[i].closingBalance!),
+          for (var i = 0; i < balances.length; i++) FlSpot(i.toDouble(), balances[i]),
         ];
 
         return PremiumCard(

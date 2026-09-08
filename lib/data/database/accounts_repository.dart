@@ -33,21 +33,7 @@ class AccountsRepository {
     );
   }
 
-  /// Get the most recent closed day before [date] to carry forward balance.
-  Future<DailyAccountModel?> getPreviousClosedDay(String date) async {
-    final db = await _dbHelper.database;
-    final maps = await db.query(
-      'daily_accounts',
-      where: 'date < ? AND is_day_closed = 1',
-      whereArgs: [date],
-      orderBy: 'date DESC',
-      limit: 1,
-    );
-    if (maps.isEmpty) return null;
-    return DailyAccountModel.fromMap(maps.first);
-  }
-
-  /// Get the most recent day (closed or open) before [date].
+  /// Get the most recent day before [date].
   Future<DailyAccountModel?> getPreviousDay(String date) async {
     final db = await _dbHelper.database;
     final maps = await db.query(
@@ -107,7 +93,40 @@ class AccountsRepository {
     return (result.first['total'] as num).toDouble();
   }
 
+  /// A day's closing balance, derived rather than stored: whatever it opened
+  /// with, less everything spent that day. Days are no longer explicitly
+  /// "closed", so this is always live and always correct.
+  Future<double?> getClosingBalanceFor(String date) async {
+    final account = await getDailyAccount(date);
+    if (account == null) return null;
+    final spent = await getTotalExpensesForDate(date);
+    return account.openingBalance - spent;
+  }
+
+  /// Closing balance of the most recent day on record before [date], for
+  /// carrying a balance forward into a day that hasn't been started yet.
+  Future<double?> getPreviousClosingBalance(String date) async {
+    final previous = await getPreviousDay(date);
+    if (previous == null) return null;
+    final spent = await getTotalExpensesForDate(previous.date);
+    return previous.openingBalance - spent;
+  }
+
   // ─── Monthly Summary Operations ───
+
+  /// Total spent on each day of [month], keyed by YYYY-MM-DD. One grouped
+  /// query instead of a per-day round trip.
+  Future<Map<String, double>> getExpenseTotalsByDate(String month) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      'SELECT date, SUM(amount) as total FROM expenses WHERE date LIKE ? GROUP BY date',
+      ['$month%'],
+    );
+    return {
+      for (final row in rows) row['date'] as String: (row['total'] as num).toDouble(),
+    };
+  }
+
 
   /// Returns a map of category → total amount for the given month (YYYY-MM).
   Future<Map<String, double>> getMonthlyExpenseByCategory(String month) async {

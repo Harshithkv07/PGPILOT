@@ -235,6 +235,10 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
         advanceAmount: _advanceAmountController.text.trim(),
         rentStatus: widget.student.rentStatus,
         paymentMode: widget.student.paymentMode,
+        // Rebuilding the model from scratch dropped this, so editing any
+        // detail silently reset the rent already collected this month to 0
+        // while leaving the status reading "Paid".
+        amountPaid: widget.student.amountPaid,
         aadharCard: finalAadharCard,
         aadharName: finalAadharName,
         studentPicture: finalStudentPicture,
@@ -243,9 +247,17 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
 
       if (!mounted) return;
       final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-      await studentProvider.updateStudent(updatedStudent);
+      final failure = await studentProvider.updateStudent(updatedStudent);
 
       if (!mounted) return;
+
+      if (failure != null) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failure), backgroundColor: AppColors.errorColor),
+        );
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

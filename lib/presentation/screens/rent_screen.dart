@@ -132,10 +132,11 @@ class _RentScreenState extends State<RentScreen> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Clear'),
+            icon: const Icon(Icons.restart_alt),
+            label: const Text('Clear'),
           ),
         ],
       ),
@@ -209,10 +210,11 @@ class _RentScreenState extends State<RentScreen> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryAccent, foregroundColor: Colors.black),
-            child: const Text('Start New Month'),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Start New Month'),
           ),
         ],
       ),
@@ -336,6 +338,9 @@ class _RentScreenState extends State<RentScreen> {
               ),
               const SizedBox(height: AppSpacing.xl),
 
+              const _RentFilterBar(),
+              const SizedBox(height: AppSpacing.lg),
+
               // Rent Ledger
               Consumer2<RentProvider, RoomProvider>(
                 builder: (context, rentProvider, roomProvider, _) {
@@ -351,11 +356,28 @@ class _RentScreenState extends State<RentScreen> {
                   final students = rentProvider.students;
 
                   if (students.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.only(top: 24),
+                    final noneAtAll = rentProvider.allStudents.isEmpty;
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 24),
                       child: EmptyState(
-                        icon: Icons.receipt_long_outlined,
-                        title: 'No students found',
+                        icon: noneAtAll
+                            ? Icons.receipt_long_outlined
+                            : Icons.filter_alt_off_outlined,
+                        title: noneAtAll
+                            ? 'No students found'
+                            : 'Nobody in "${rentProvider.filter.label}"',
+                        subtitle: noneAtAll
+                            ? null
+                            : rentProvider.filter == RentFilter.unpaid
+                                ? 'Everyone has paid something this month.'
+                                : 'Try another filter.',
+                        action: noneAtAll
+                            ? null
+                            : TextButton.icon(
+                                onPressed: () => rentProvider.setFilter(RentFilter.all),
+                                icon: const Icon(Icons.clear_all),
+                                label: const Text('Show all'),
+                              ),
                       ),
                     );
                   }
@@ -525,6 +547,142 @@ class _RentScreenState extends State<RentScreen> {
                     }).toList(),
                   );
                 },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Filter chips over the rent ledger, each carrying its own count, plus the
+/// running total still owed. Tapping "Unpaid" is the one-tap answer to
+/// "who hasn't paid me yet?".
+class _RentFilterBar extends StatelessWidget {
+  const _RentFilterBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<RentProvider>(
+      builder: (context, provider, _) {
+        final outstanding = provider.totalOutstanding;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.filter_alt_outlined, size: 18, color: AppColors.primaryAccent),
+                const SizedBox(width: AppSpacing.sm),
+                const Text(
+                  'Rent Ledger',
+                  style: TextStyle(
+                    fontFamily: 'Sora',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const Spacer(),
+                if (outstanding > 0)
+                  Text(
+                    '₹$outstanding still owed',
+                    style: const TextStyle(fontSize: 12, color: AppColors.paymentPending),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final filter in RentFilter.values) ...[
+                    _FilterChip(
+                      label: filter.label,
+                      count: provider.countFor(filter),
+                      selected: provider.filter == filter,
+                      color: _colorFor(filter),
+                      onTap: () => provider.setFilter(filter),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Color _colorFor(RentFilter filter) => switch (filter) {
+        RentFilter.all => AppColors.primaryAccent,
+        RentFilter.unpaid => AppColors.paymentPending,
+        RentFilter.partial => AppColors.warningColor,
+        RentFilter.paid => AppColors.successColor,
+      };
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.mdBorder,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.22) : AppColors.cardBackground,
+            borderRadius: AppRadius.mdBorder,
+            border: Border.all(
+              color: selected ? color : AppColors.borderColor,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? color : AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: (selected ? color : AppColors.textMuted).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? color : AppColors.textSecondary,
+                  ),
+                ),
               ),
             ],
           ),

@@ -228,7 +228,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
       if (!mounted) return;
       final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-      final success = await studentProvider.addStudent(student);
+      final failure = await studentProvider.addStudent(student);
+      final success = failure == null;
 
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -254,9 +255,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('No'),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Yes'),
+                icon: const Icon(Icons.chat),
+                label: const Text('Yes'),
               ),
             ],
           ),
@@ -274,8 +276,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot add you to that room because capacity is reached.'),
+            SnackBar(
+              content: Text(failure),
               backgroundColor: AppColors.errorColor,
             ),
           );

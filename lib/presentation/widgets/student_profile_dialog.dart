@@ -6,6 +6,7 @@ import '../../core/utils/whatsapp_helper.dart';
 import 'common/info_row.dart';
 import 'common/section_header.dart';
 import 'common/premium_button.dart';
+import 'change_room_sheet.dart';
 import 'rent_history_dialog.dart';
 import 'edit_student_dialog.dart';
 
@@ -166,15 +167,36 @@ class _StudentProfileDialogState extends State<StudentProfileDialog> {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            PremiumButton(
-              label: 'View Rent History',
-              icon: Icons.history,
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => RentHistoryDialog(student: _currentStudent),
-                );
-              },
+            Row(
+              children: [
+                Expanded(
+                  child: PremiumButton(
+                    label: 'Change Room',
+                    icon: Icons.swap_horiz,
+                    gradient: const LinearGradient(
+                      colors: [AppColors.cardBackgroundElevated, AppColors.cardBackground],
+                    ),
+                    foregroundColor: AppColors.textPrimary,
+                    onPressed: () async {
+                      final moved = await ChangeRoomSheet.show(context, _currentStudent);
+                      if (moved && context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: PremiumButton(
+                    label: 'Rent History',
+                    icon: Icons.history,
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => RentHistoryDialog(student: _currentStudent),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),

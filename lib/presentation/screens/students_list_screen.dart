@@ -8,6 +8,7 @@ import '../../core/constants/app_dimens.dart';
 import '../../core/utils/whatsapp_helper.dart';
 import '../../logic/providers/room_provider.dart';
 import '../../logic/providers/rent_provider.dart';
+import '../widgets/change_room_sheet.dart';
 import '../widgets/student_profile_dialog.dart';
 import '../widgets/common/premium_card.dart';
 import '../widgets/common/compact_action_button.dart';
@@ -58,10 +59,11 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
-            child: const Text('Delete'),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Delete'),
           ),
         ],
       ),
@@ -123,15 +125,21 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: 'Clear search',
                         onPressed: () {
                           _searchController.clear();
                           Provider.of<StudentProvider>(context, listen: false).searchStudents('');
+                          setState(() {});
                         },
                       )
                     : null,
               ),
               onChanged: (value) {
                 Provider.of<StudentProvider>(context, listen: false).searchStudents(value);
+                // The suffix icon depends on this controller's text, and
+                // nothing else rebuilds this field — without a setState the
+                // clear button never appeared.
+                setState(() {});
               },
             ),
           ),
@@ -175,10 +183,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
     return PremiumCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       onTap: () => _showStudentProfile(context, student.id!),
-      child: InkWell(
-        onLongPress: () => _deleteStudent(student.id!),
-        borderRadius: AppRadius.lgBorder,
-        child: Row(
+      child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             CircleAvatar(
@@ -241,16 +246,51 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                   tooltip: 'WhatsApp',
                 ),
                 const SizedBox(width: 6),
-                CompactActionButton(
-                  icon: Icons.visibility,
-                  color: AppColors.textSecondary,
-                  onPressed: () => _showStudentProfile(context, student.id!),
-                  tooltip: 'View Profile',
+                // Tapping the card already opens the profile, so the third slot
+                // holds the less-common actions instead of a duplicate button.
+                PopupMenuButton<String>(
+                  tooltip: 'More actions',
+                  icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 20),
+                  color: AppColors.cardBackground,
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      _showStudentProfile(context, student.id!);
+                    } else if (value == 'room') {
+                      ChangeRoomSheet.show(context, student);
+                    } else if (value == 'delete') {
+                      _deleteStudent(student.id!);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(children: [
+                        Icon(Icons.visibility, size: 18, color: AppColors.textSecondary),
+                        SizedBox(width: 10),
+                        Text('View profile'),
+                      ]),
+                    ),
+                    PopupMenuItem(
+                      value: 'room',
+                      child: Row(children: [
+                        Icon(Icons.swap_horiz, size: 18, color: AppColors.primaryAccent),
+                        SizedBox(width: 10),
+                        Text('Change room'),
+                      ]),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(children: [
+                        Icon(Icons.delete_outline, size: 18, color: AppColors.errorColor),
+                        SizedBox(width: 10),
+                        Text('Delete student', style: TextStyle(color: AppColors.errorColor)),
+                      ]),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

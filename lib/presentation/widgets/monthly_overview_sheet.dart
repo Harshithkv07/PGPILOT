@@ -34,6 +34,8 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
 
     final monthStr = DateFormat('yyyy-MM').format(_selectedMonth);
     final accounts = await _repo.getDailyAccountsForMonth(monthStr);
+    // One grouped query for the whole month, rather than a round trip per day.
+    final spentByDate = await _repo.getExpenseTotalsByDate(monthStr);
 
     // Build a map of date -> account for quick lookup
     final accountMap = <String, DailyAccountModel>{};
@@ -55,10 +57,10 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
 
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final account = accountMap[dateStr];
-      double totalExpense = 0;
-      if (account != null) {
-        totalExpense = await _repo.getTotalExpensesForDate(dateStr);
-      }
+      // Spending is read straight from the expenses table: a day can carry
+      // expenses without ever having had an opening balance set, and those
+      // used to silently show as zero.
+      final totalExpense = spentByDate[dateStr] ?? 0;
       days.add(_DayCardData(
         date: date,
         account: account,
@@ -163,7 +165,11 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
           borderRadius: AppRadius.mdBorder,
-          border: Border.all(color: AppColors.borderColorSubtle),
+          border: Border.all(
+            color: day.account != null
+                ? AppColors.primaryAccent.withValues(alpha: 0.45)
+                : AppColors.borderColorSubtle,
+          ),
         ),
         padding: const EdgeInsets.all(6),
         child: Column(

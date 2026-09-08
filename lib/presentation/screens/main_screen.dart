@@ -34,6 +34,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
 
+  /// Owned once, not rebuilt: a fresh FocusNode per build stole focus from
+  /// whatever text field the user was typing in.
+  final FocusNode _shortcutFocus = FocusNode();
+
   final List<Widget> _screens = [
     const AccountsScreen(),
     const DashboardScreen(),
@@ -96,17 +100,29 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   @override
+  void dispose() {
+    _shortcutFocus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
+      focusNode: _shortcutFocus,
+      // Focused once on mount rather than on every build, so a text field that
+      // takes focus keeps it — and typing digits there no longer flips tabs.
+      autofocus: true,
       onKeyEvent: (KeyEvent event) {
         if (event is KeyDownEvent) {
+          // Only as many shortcuts as there are tabs — digit5 used to select a
+          // fifth screen that does not exist and crashed with a RangeError.
+          // Not const: LogicalKeyboardKey has no primitive equality, so it
+          // cannot be a const map key.
           final keyMap = {
             LogicalKeyboardKey.digit1: 0,
             LogicalKeyboardKey.digit2: 1,
             LogicalKeyboardKey.digit3: 2,
             LogicalKeyboardKey.digit4: 3,
-            LogicalKeyboardKey.digit5: 4,
           };
           if (keyMap.containsKey(event.logicalKey)) {
             setState(() {

@@ -102,10 +102,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Overwrite Data'),
+            icon: const Icon(Icons.warning_amber_rounded),
+            label: const Text('Overwrite Data'),
           ),
         ],
       ),

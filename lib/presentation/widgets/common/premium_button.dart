@@ -27,6 +27,9 @@ class PremiumButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDisabled = onPressed == null || loading;
+    // Disabled swaps the gold gradient for a dark grey fill, and the black
+    // label that reads well on gold becomes near-invisible on it.
+    final contentColor = isDisabled && !loading ? AppColors.textMuted : foregroundColor;
 
     return Container(
       height: height,
@@ -55,7 +58,7 @@ class PremiumButton extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (icon != null) ...[
-                        Icon(icon, size: 19, color: foregroundColor),
+                        Icon(icon, size: 19, color: contentColor),
                         const SizedBox(width: AppSpacing.sm),
                       ],
                       Text(
@@ -65,7 +68,7 @@ class PremiumButton extends StatelessWidget {
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
-                          color: foregroundColor,
+                          color: contentColor,
                         ),
                       ),
                     ],

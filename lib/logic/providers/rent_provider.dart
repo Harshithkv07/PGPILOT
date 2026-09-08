@@ -7,6 +7,19 @@ import '../../data/database/room_repository.dart';
 import '../../data/database/payment_history_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Which slice of the rent ledger is on screen. Every student falls in
+/// exactly one bucket, so the counts always add up to [RentFilter.all].
+enum RentFilter { all, unpaid, partial, paid }
+
+extension RentFilterLabel on RentFilter {
+  String get label => switch (this) {
+        RentFilter.all => 'All',
+        RentFilter.unpaid => 'Unpaid',
+        RentFilter.partial => 'Partial',
+        RentFilter.paid => 'Paid',
+      };
+}
+
 class RentProvider with ChangeNotifier {
   final StudentRepository _studentRepo = StudentRepository();
   final RoomRepository _roomRepo = RoomRepository();
@@ -21,9 +34,53 @@ class RentProvider with ChangeNotifier {
   final Map<String, int> _dueByRoom = {};
 
   bool _isLoading = false;
+  RentFilter _filter = RentFilter.all;
 
-  List<StudentModel> get students => _students;
+  /// Every student, regardless of the active filter — the revenue totals are
+  /// always for the whole PG, not the current view.
+  List<StudentModel> get allStudents => _students;
   bool get isLoading => _isLoading;
+  RentFilter get filter => _filter;
+
+  /// The students the ledger should show, ordered so the ones still owing
+  /// money come first — that is what the screen is normally opened for.
+  List<StudentModel> get students {
+    final visible = _students.where((s) => _matches(s, _filter)).toList();
+    visible.sort((a, b) {
+      final rank = _chaseRank(a).compareTo(_chaseRank(b));
+      if (rank != 0) return rank;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return visible;
+  }
+
+  /// Pure predicate, so counting a bucket never disturbs the active filter.
+  bool _matches(StudentModel s, RentFilter filter) => switch (filter) {
+        RentFilter.all => true,
+        RentFilter.unpaid => s.rentStatus != 'Paid' && s.amountPaid <= 0,
+        RentFilter.partial => s.rentStatus != 'Paid' && s.amountPaid > 0,
+        RentFilter.paid => s.rentStatus == 'Paid',
+      };
+
+  /// Nothing paid sorts first, part payments next, settled last.
+  int _chaseRank(StudentModel s) {
+    if (s.rentStatus == 'Paid') return 2;
+    return s.amountPaid > 0 ? 1 : 0;
+  }
+
+  void setFilter(RentFilter filter) {
+    if (_filter == filter) return;
+    _filter = filter;
+    notifyListeners();
+  }
+
+  /// How many students sit in each bucket, for the filter chips.
+  int countFor(RentFilter filter) =>
+      _students.where((s) => _matches(s, filter)).length;
+
+  /// Total still owed across everyone — the number worth chasing.
+  int get totalOutstanding =>
+      _students.fold(0, (sum, s) => sum + amountRemainingFor(s));
 
   // Load all students for rent tracking
   Future<void> loadStudents() async {
@@ -238,7 +295,7 @@ class RentProvider with ChangeNotifier {
     }
   }
 
-  // Get students by rent status
+  // Get students by rent status (unfiltered — used by summary widgets)
   List<StudentModel> getStudentsByStatus(String status) {
     return _students.where((s) => s.rentStatus == status).toList();
   }

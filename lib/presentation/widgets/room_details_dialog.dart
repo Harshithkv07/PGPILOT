@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
 import '../../core/utils/whatsapp_helper.dart';
 import '../../logic/providers/room_provider.dart';
+import 'change_room_sheet.dart';
 import 'common/premium_card.dart';
 import 'common/stat_chip.dart';
 import 'common/empty_state.dart';
@@ -221,6 +222,14 @@ class _RoomDetailsDialogState extends State<RoomDetailsDialog> {
                                             Text(student.contact, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                                           ],
                                         ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.swap_horiz, color: AppColors.primaryAccent),
+                                        onPressed: () async {
+                                          final moved = await ChangeRoomSheet.show(context, student);
+                                          if (moved && context.mounted) Navigator.pop(context);
+                                        },
+                                        tooltip: 'Move to another room',
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.message, color: AppColors.primaryAccent),
