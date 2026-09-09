@@ -3,9 +3,11 @@ import 'package:intl/intl.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/models/daily_account_model.dart';
 import '../../data/database/accounts_repository.dart';
+import '../../data/database/payment_history_repository.dart';
 
 class AccountsProvider with ChangeNotifier {
   final AccountsRepository _repo = AccountsRepository();
+  final PaymentHistoryRepository _rentRepo = PaymentHistoryRepository();
 
   DateTime _selectedDate = DateTime.now();
   DailyAccountModel? _todayAccount;
@@ -23,9 +25,17 @@ class AccountsProvider with ChangeNotifier {
   double get totalExpensesToday =>
       _expenses.fold(0, (sum, e) => sum + e.amount);
 
+  /// Cash rent taken on the selected day.
+  ///
+  /// Rent and the cash book used to be entirely separate: cash handed over by a
+  /// student is money in the box, but the day's balance never knew about it.
+  /// UPI is deliberately excluded — it never touches the cash box.
+  double _rentCollectedToday = 0;
+  double get rentCollectedToday => _rentCollectedToday;
+
   double get remainingBalance {
     if (_todayAccount == null) return 0;
-    return _todayAccount!.openingBalance - totalExpensesToday;
+    return _todayAccount!.openingBalance + _rentCollectedToday - totalExpensesToday;
   }
 
   /// The day's running balance: what it opened with, less what has been spent.
@@ -42,6 +52,7 @@ class AccountsProvider with ChangeNotifier {
     final dateStr = selectedDateStr;
     _todayAccount = await _repo.getDailyAccount(dateStr);
     _expenses = await _repo.getExpensesForDate(dateStr);
+    _rentCollectedToday = await _rentRepo.getCashCollectedOn(dateStr);
 
     _isLoading = false;
     notifyListeners();
@@ -50,7 +61,13 @@ class AccountsProvider with ChangeNotifier {
   /// The closing balance of the last day on record before the selected one,
   /// offered as the opening balance when starting a new day.
   Future<double?> getPreviousClosingBalance() async {
-    return _repo.getPreviousClosingBalance(selectedDateStr);
+    final previous = await _repo.getPreviousDay(selectedDateStr);
+    if (previous == null) return null;
+    // Same arithmetic as the day view, cash rent included, so the suggested
+    // opening balance matches what that day actually ended on.
+    final spent = await _repo.getTotalExpensesForDate(previous.date);
+    final rent = await _rentRepo.getCashCollectedOn(previous.date);
+    return previous.openingBalance + rent - spent;
   }
 
   /// Get previous day (closed or open).
@@ -176,10 +193,14 @@ class AccountsProvider with ChangeNotifier {
     final accounts = await _repo.getDailyAccountsForMonth(target);
     final spentByDate = await _repo.getExpenseTotalsByDate(target);
 
+    final rentByDate = await _rentRepo.getCashCollectedByDate(target);
+
     final sorted = [...accounts]..sort((a, b) => a.date.compareTo(b.date));
     return [
       for (final account in sorted)
-        account.openingBalance - (spentByDate[account.date] ?? 0),
+        account.openingBalance +
+            (rentByDate[account.date] ?? 0) -
+            (spentByDate[account.date] ?? 0),
     ];
   }
 }

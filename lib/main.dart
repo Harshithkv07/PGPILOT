@@ -99,7 +99,7 @@ class _SlideshowWidgetState extends State<SlideshowWidget> {
       case 7:
         return const MainScreen(initialIndex: 3);
       case 8:
-        return const MainScreen(initialIndex: 4);
+        return const MainScreen(initialIndex: 3);
       default:
         return const Scaffold(
           body: Center(

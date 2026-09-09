@@ -13,6 +13,7 @@ import '../widgets/student_profile_dialog.dart';
 import '../widgets/common/premium_card.dart';
 import '../widgets/common/compact_action_button.dart';
 import '../widgets/common/empty_state.dart';
+import '../widgets/common/search_field.dart';
 
 class StudentsListScreen extends StatefulWidget {
   const StudentsListScreen({super.key});
@@ -22,20 +23,12 @@ class StudentsListScreen extends StatefulWidget {
 }
 
 class _StudentsListScreenState extends State<StudentsListScreen> {
-  final _searchController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<StudentProvider>(context, listen: false).loadStudents();
     });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   void _showStudentProfile(BuildContext context, int studentId) {
@@ -117,30 +110,10 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by name, room, or contact...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: 'Clear search',
-                        onPressed: () {
-                          _searchController.clear();
-                          Provider.of<StudentProvider>(context, listen: false).searchStudents('');
-                          setState(() {});
-                        },
-                      )
-                    : null,
-              ),
-              onChanged: (value) {
-                Provider.of<StudentProvider>(context, listen: false).searchStudents(value);
-                // The suffix icon depends on this controller's text, and
-                // nothing else rebuilds this field — without a setState the
-                // clear button never appeared.
-                setState(() {});
-              },
+            child: SearchField(
+              hintText: 'Search by name, room, or contact...',
+              onChanged: (value) =>
+                  Provider.of<StudentProvider>(context, listen: false).searchStudents(value),
             ),
           ),
           Expanded(

@@ -37,6 +37,24 @@ class AuthProvider with ChangeNotifier {
     return success;
   }
 
+  /// True while the login still uses the password shipped with the app.
+  Future<bool> isUsingDefaultPassword() => _authService.isUsingDefaultPassword();
+
+  Future<String> currentUsername() => _authService.currentUsername();
+
+  /// Change the login password. Returns null on success, or the reason it was
+  /// refused.
+  Future<String?> changeCredentials({
+    required String currentPassword,
+    required String newPassword,
+    String? newUsername,
+  }) =>
+      _authService.changeCredentials(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        newUsername: newUsername,
+      );
+
   // Logout
   Future<void> logout() async {
     await _authService.logout();

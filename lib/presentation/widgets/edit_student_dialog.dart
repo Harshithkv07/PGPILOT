@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -452,8 +453,10 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
         TextFormField(
           controller: _advanceAmountController,
           decoration: const InputDecoration(labelText: 'Advance Amount', prefixIcon: Icon(Icons.currency_rupee)),
-          keyboardType: TextInputType.number,
-          validator: null,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
         const SectionHeader(title: 'Aadhar Card Attachment'),

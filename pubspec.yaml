@@ -32,6 +32,9 @@ dependencies:
   # Storage
   shared_preferences: ^2.3.3
 
+  # Password hashing (login credentials are never stored in plain text)
+  crypto: ^3.0.3
+
   # Charts
   fl_chart: ^0.69.0
 

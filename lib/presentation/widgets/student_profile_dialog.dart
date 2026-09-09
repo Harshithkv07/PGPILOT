@@ -156,7 +156,7 @@ class _StudentProfileDialogState extends State<StudentProfileDialog> {
                     InfoRow(label: 'College/Workplace', value: _currentStudent.college),
                     InfoRow(label: 'Hometown', value: _currentStudent.hometown),
                     InfoRow(label: 'Address', value: _currentStudent.address),
-                    InfoRow(label: 'Advance Amount', value: '₹${_currentStudent.advanceAmount}'),
+                    InfoRow(label: 'Advance Amount', value: '₹${_currentStudent.advanceAmountValue.round()}'),
                     InfoRow(label: 'Aadhar Card', value: _currentStudent.aadharName != null ? 'Attached' : 'Pending'),
                     InfoRow(label: 'Student Picture', value: _currentStudent.studentPictureName != null ? 'Attached' : 'Pending'),
                     InfoRow(label: 'Rent Status', value: _currentStudent.rentStatus),

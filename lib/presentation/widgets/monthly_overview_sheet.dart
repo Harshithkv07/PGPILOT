@@ -8,6 +8,8 @@ import '../../data/models/daily_account_model.dart';
 import '../../data/database/accounts_repository.dart';
 import 'common/empty_state.dart';
 
+/// Calendar of the month's days and what was spent on each. Named "Day Calendar"
+/// in the UI so it is not confused with the Month Report.
 class MonthlyOverviewScreen extends StatefulWidget {
   const MonthlyOverviewScreen({super.key});
 
@@ -94,7 +96,7 @@ class _MonthlyOverviewScreenState extends State<MonthlyOverviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Monthly Overview'),
+        title: const Text('Day Calendar'),
       ),
       body: Column(
         children: [

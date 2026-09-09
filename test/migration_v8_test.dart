@@ -74,7 +74,11 @@ void main() {
   });
 
   tearDown(() {
-    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    // Windows can still hold the sqlite file briefly after close(); a temp
+    // directory left behind is harmless, a failed teardown is not.
+    try {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    } catch (_) {}
   });
 
   test('v7 database upgrades to v8 with partial-payment columns', () async {

@@ -52,7 +52,7 @@ class ExcelService {
         TextCellValue(student.college),
         TextCellValue(student.hometown),
         TextCellValue(student.address),
-        TextCellValue(student.advanceAmount),
+        DoubleCellValue(student.advanceAmountValue),
         TextCellValue(student.aadharName != null ? 'Attached' : 'Pending'),
         TextCellValue(student.studentPictureName != null ? 'Attached' : 'Pending'),
         IntCellValue(room?.capacity ?? 0),

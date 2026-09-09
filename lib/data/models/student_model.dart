@@ -15,6 +15,12 @@ class StudentModel {
   final String rentStatus;
   final String paymentMode;
 
+  /// The advance as a number. The underlying column is TEXT for historical
+  /// reasons and may hold anything previously typed, so this parses leniently
+  /// and falls back to 0 rather than throwing.
+  double get advanceAmountValue =>
+      double.tryParse(advanceAmount.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+
   /// Rent settled so far for the *current* month, across every instalment.
   /// Archived months keep their own totals in `payment_history`.
   final double amountPaid;

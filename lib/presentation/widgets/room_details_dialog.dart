@@ -56,6 +56,66 @@ class _RoomDetailsDialogState extends State<RoomDetailsDialog> {
     super.dispose();
   }
 
+  /// Delete this room. An occupied room cannot go, but rather than a dead end
+  /// the refusal points at the occupants listed just below — each of whom has
+  /// a move button — so there is a way forward from here.
+  Future<void> _deleteRoom() async {
+    if (widget.occupancy > 0) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Room Not Empty'),
+          content: Text(
+            'Room ${_room.roomNumber} still has ${widget.occupancy} '
+            'student${widget.occupancy == 1 ? '' : 's'} in it.\n\n'
+            'Move them out using the ⇆ button beside each name below, then delete the room.',
+          ),
+          actions: [
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.people_outline),
+              label: const Text('Show occupants'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Room'),
+        content: Text('Delete room ${_room.roomNumber}? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final roomProvider = Provider.of<RoomProvider>(context, listen: false);
+    final ok = await roomProvider.deleteRoom(_room.roomNumber);
+
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Room ${_room.roomNumber} deleted.'
+            : 'Could not delete room ${_room.roomNumber}.'),
+        backgroundColor: ok ? AppColors.successColor : AppColors.errorColor,
+      ),
+    );
+  }
+
   void _startEditing() {
     setState(() {
       _capacityController.text = '${_room.capacity}';
@@ -164,12 +224,18 @@ class _RoomDetailsDialogState extends State<RoomDetailsDialog> {
                     ],
                   ),
                 ),
-                if (!_editing)
+                if (!_editing) ...[
                   IconButton(
                     icon: const Icon(Icons.edit_outlined, color: AppColors.primaryAccent),
                     onPressed: _startEditing,
                     tooltip: 'Edit room size, rent and EB bill',
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppColors.errorColor),
+                    onPressed: _deleteRoom,
+                    tooltip: 'Delete this room',
+                  ),
+                ],
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),

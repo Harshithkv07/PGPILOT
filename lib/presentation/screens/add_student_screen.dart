@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -489,8 +490,12 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 labelText: 'Advance Amount',
                 prefixIcon: Icon(Icons.currency_rupee),
               ),
-              keyboardType: TextInputType.number,
-              validator: null,
+              // Money, so only digits get in — the column is free text and used
+              // to accept anything, which made advances impossible to total.
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
             ),
             const SizedBox(height: AppSpacing.lg),
 

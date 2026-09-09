@@ -76,6 +76,17 @@ class _MonthlySummarySheetState extends State<MonthlySummarySheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+          // Named so it cannot be mistaken for the Day Calendar, which used to
+          // be called "Monthly Overview" and sat behind the icon next door.
+          const Text(
+            'MONTH REPORT',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: AppColors.primaryAccent,
+            ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [

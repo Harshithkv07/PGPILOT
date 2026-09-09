@@ -4,6 +4,7 @@ import '../../data/models/room_config_model.dart';
 import '../../data/database/student_repository.dart';
 import '../../data/database/room_repository.dart';
 import '../../data/database/payment_history_repository.dart';
+import '../../data/services/file_storage_service.dart';
 import '../../data/services/student_import_service.dart';
 
 /// Outcome of a CSV import, so the UI can tell the user exactly what happened.
@@ -19,6 +20,7 @@ class StudentProvider with ChangeNotifier {
   final StudentRepository _studentRepo = StudentRepository();
   final RoomRepository _roomRepo = RoomRepository();
   final PaymentHistoryRepository _paymentHistoryRepo = PaymentHistoryRepository();
+  final FileStorageService _files = FileStorageService();
   
   List<StudentModel> _students = [];
   List<StudentModel> _filteredStudents = [];
@@ -242,14 +244,40 @@ class StudentProvider with ChangeNotifier {
     }
   }
 
-  /// Delete a student and the rent history that belongs to them.
+  /// Delete a student along with everything that belongs to them: rent
+  /// history, instalments, and the documents stored on disk.
   ///
   /// payment_history declares ON DELETE CASCADE, but sqflite leaves foreign
   /// keys off by default, so those rows were never actually removed — they
-  /// piled up pointing at students who no longer exist.
+  /// piled up pointing at students who no longer exist. The scanned Aadhaar,
+  /// photo and payment screenshots were never cleaned up either, so a deleted
+  /// student's documents stayed on the device indefinitely.
   Future<void> deleteStudent(int id) async {
+    final student = await _studentRepo.getStudentById(id);
+    final history = await _paymentHistoryRepo.getStudentPaymentHistory(id);
+
     await _paymentHistoryRepo.deleteStudentPaymentHistory(id);
+    await _paymentHistoryRepo.deleteStudentInstalments(id);
     await _studentRepo.deleteStudent(id);
+
+    // Files last: if anything here fails the database is already consistent,
+    // and an orphaned file is a smaller problem than an orphaned record.
+    try {
+      for (final payment in history) {
+        if (payment.screenshotPath != null) {
+          await _files.deleteScreenshot(payment.screenshotPath!);
+        }
+      }
+      if (student?.aadharName != null) {
+        await _files.deleteAadharCard(student!.aadharName!);
+      }
+      if (student?.studentPictureName != null) {
+        await _files.deleteStudentPicture(student!.studentPictureName!);
+      }
+    } catch (e) {
+      debugPrint('Error removing files for student $id: $e');
+    }
+
     await loadStudents();
   }
 

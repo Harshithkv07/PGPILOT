@@ -1,4 +1,5 @@
 import '../models/payment_history_model.dart';
+import '../models/rent_payment_model.dart';
 import 'database_helper.dart';
 
 class PaymentHistoryRepository {
@@ -77,6 +78,69 @@ class PaymentHistoryRepository {
       where: 'student_id = ?',
       whereArgs: [studentId],
     );
+  }
+
+  // ─── Instalments (rent_payments) ───
+
+  /// Record one instalment on the day it was taken.
+  Future<int> insertInstalment(RentPaymentModel payment) async {
+    final db = await _dbHelper.database;
+    return await db.insert('rent_payments', payment.toMap());
+  }
+
+  /// Drop a student's instalments for a month — used when a month's payments
+  /// are cleared, so the cash book stops counting money that was undone.
+  Future<int> deleteInstalmentsForMonth(int studentId, String month) async {
+    final db = await _dbHelper.database;
+    return await db.delete(
+      'rent_payments',
+      where: 'student_id = ? AND month = ?',
+      whereArgs: [studentId, month],
+    );
+  }
+
+  Future<int> deleteStudentInstalments(int studentId) async {
+    final db = await _dbHelper.database;
+    return await db.delete('rent_payments',
+        where: 'student_id = ?', whereArgs: [studentId]);
+  }
+
+  /// Cash rent taken on [date] (YYYY-MM-DD). Only cash: UPI never enters the
+  /// physical cash box, so counting it would break the day's reconciliation.
+  Future<double> getCashCollectedOn(String date) async {
+    final db = await _dbHelper.database;
+    final result = await db.rawQuery(
+      'SELECT COALESCE(SUM(cash_amount), 0) as total FROM rent_payments WHERE paid_on = ?',
+      [date],
+    );
+    return (result.first['total'] as num).toDouble();
+  }
+
+  /// Cash rent taken on each day of [month] (YYYY-MM), keyed by date.
+  Future<Map<String, double>> getCashCollectedByDate(String month) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      'SELECT paid_on, SUM(cash_amount) as total FROM rent_payments '
+      'WHERE paid_on LIKE ? GROUP BY paid_on',
+      ['$month%'],
+    );
+    return {
+      for (final row in rows)
+        row['paid_on'] as String: (row['total'] as num).toDouble(),
+    };
+  }
+
+  /// Every instalment taken on [date], newest first — the detail behind the
+  /// day's rent line.
+  Future<List<RentPaymentModel>> getInstalmentsOn(String date) async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'rent_payments',
+      where: 'paid_on = ?',
+      whereArgs: [date],
+      orderBy: 'id DESC',
+    );
+    return maps.map(RentPaymentModel.fromMap).toList();
   }
 
   // Get payment statistics

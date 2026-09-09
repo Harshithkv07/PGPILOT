@@ -11,15 +11,26 @@ class RoomProvider with ChangeNotifier {
   final Map<String, int> _occupancyMap = {};
   bool _isLoading = false;
   String _filter = 'all'; // 'all' or 'available'
+  String _query = '';
+
+  String get query => _query;
+
+  void setQuery(String value) {
+    final next = value.trim();
+    if (_query == next) return;
+    _query = next;
+    notifyListeners();
+  }
 
   List<RoomConfigModel> get rooms {
-    if (_filter == 'available') {
-      return _rooms.where((room) {
+    return _rooms.where((room) {
+      if (_filter == 'available') {
         final occupancy = _occupancyMap[room.roomNumber] ?? 0;
-        return occupancy < room.capacity;
-      }).toList();
-    }
-    return _rooms;
+        if (occupancy >= room.capacity) return false;
+      }
+      if (_query.isEmpty) return true;
+      return room.roomNumber.toLowerCase().contains(_query.toLowerCase());
+    }).toList();
   }
   
   List<RoomConfigModel> get allRooms => _rooms;

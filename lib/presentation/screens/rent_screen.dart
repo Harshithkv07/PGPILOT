@@ -15,6 +15,7 @@ import '../widgets/common/premium_card.dart';
 import '../widgets/common/premium_button.dart';
 import '../widgets/common/empty_state.dart';
 import '../widgets/common/compact_action_button.dart';
+import '../widgets/common/search_field.dart';
 import '../widgets/record_payment_dialog.dart';
 
 class RentScreen extends StatefulWidget {
@@ -142,17 +143,29 @@ class _RentScreenState extends State<RentScreen> {
       ),
     );
 
-    if (confirmed == true && mounted) {
-      await Provider.of<RentProvider>(context, listen: false).revertToPending(student.id!);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payments cleared. Status reverted to pending.'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
-    }
+    if (confirmed != true || !mounted) return;
+
+    final rentProvider = Provider.of<RentProvider>(context, listen: false);
+    final cleared = await rentProvider.revertToPending(student.id!);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(paid > 0
+            ? '₹$paid cleared for ${student.name}.'
+            : '${student.name} reverted to pending.'),
+        backgroundColor: AppColors.successColor,
+        duration: const Duration(seconds: 6),
+        // Clearing a month's rent used to be unrecoverable.
+        action: cleared == null
+            ? null
+            : SnackBarAction(
+                label: 'UNDO',
+                textColor: Colors.black,
+                onPressed: () => rentProvider.restorePayment(cleared),
+              ),
+      ),
+    );
   }
 
   Future<void> _viewCurrentMonthScreenshot(int studentId) async {
@@ -365,16 +378,23 @@ class _RentScreenState extends State<RentScreen> {
                             : Icons.filter_alt_off_outlined,
                         title: noneAtAll
                             ? 'No students found'
-                            : 'Nobody in "${rentProvider.filter.label}"',
+                            : rentProvider.query.isNotEmpty
+                                ? 'No match for "${rentProvider.query}"'
+                                : 'Nobody in "${rentProvider.filter.label}"',
                         subtitle: noneAtAll
                             ? null
-                            : rentProvider.filter == RentFilter.unpaid
-                                ? 'Everyone has paid something this month.'
-                                : 'Try another filter.',
+                            : rentProvider.query.isNotEmpty
+                                ? 'Check the spelling, or clear the filter.'
+                                : rentProvider.filter == RentFilter.unpaid
+                                    ? 'Everyone has paid something this month.'
+                                    : 'Try another filter.',
                         action: noneAtAll
                             ? null
                             : TextButton.icon(
-                                onPressed: () => rentProvider.setFilter(RentFilter.all),
+                                onPressed: () {
+                                  rentProvider.setFilter(RentFilter.all);
+                                  rentProvider.setQuery('');
+                                },
                                 icon: const Icon(Icons.clear_all),
                                 label: const Text('Show all'),
                               ),
@@ -591,6 +611,12 @@ class _RentFilterBar extends StatelessWidget {
                     style: const TextStyle(fontSize: 12, color: AppColors.paymentPending),
                   ),
               ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SearchField(
+              hintText: 'Search by name, room, or contact…',
+              initialValue: provider.query,
+              onChanged: provider.setQuery,
             ),
             const SizedBox(height: AppSpacing.md),
             SingleChildScrollView(

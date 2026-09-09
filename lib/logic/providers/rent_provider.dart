@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/student_model.dart';
 import '../../data/models/payment_history_model.dart';
+import '../../data/models/rent_payment_model.dart';
 import '../../data/database/student_repository.dart';
 import '../../data/database/room_repository.dart';
 import '../../data/database/payment_history_repository.dart';
@@ -35,6 +36,7 @@ class RentProvider with ChangeNotifier {
 
   bool _isLoading = false;
   RentFilter _filter = RentFilter.all;
+  String _query = '';
 
   /// Every student, regardless of the active filter — the revenue totals are
   /// always for the whole PG, not the current view.
@@ -44,8 +46,27 @@ class RentProvider with ChangeNotifier {
 
   /// The students the ledger should show, ordered so the ones still owing
   /// money come first — that is what the screen is normally opened for.
+  String get query => _query;
+
+  void setQuery(String value) {
+    final next = value.trim();
+    if (_query == next) return;
+    _query = next;
+    notifyListeners();
+  }
+
+  bool _matchesQuery(StudentModel s) {
+    if (_query.isEmpty) return true;
+    final needle = _query.toLowerCase();
+    return s.name.toLowerCase().contains(needle) ||
+        s.roomNumber.toLowerCase().contains(needle) ||
+        s.contact.contains(_query);
+  }
+
   List<StudentModel> get students {
-    final visible = _students.where((s) => _matches(s, _filter)).toList();
+    final visible = _students
+        .where((s) => _matches(s, _filter) && _matchesQuery(s))
+        .toList();
     visible.sort((a, b) {
       final rank = _chaseRank(a).compareTo(_chaseRank(b));
       if (rank != 0) return rank;
@@ -159,6 +180,19 @@ class RentProvider with ChangeNotifier {
       amountPaid: newTotal,
     ));
 
+    // Record this instalment on the day it was taken, so the daily cash book
+    // can count the cash that actually came in today. The rollup below stays
+    // the source of truth for the month.
+    if (cashAmount > 0 || upiAmount > 0) {
+      await _paymentHistoryRepo.insertInstalment(RentPaymentModel(
+        studentId: studentId,
+        month: currentMonth,
+        paidOn: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        cashAmount: cashAmount,
+        upiAmount: upiAmount,
+      ));
+    }
+
     await _paymentHistoryRepo.upsertPaymentRecord(PaymentHistoryModel(
       studentId: studentId,
       month: currentMonth,
@@ -177,7 +211,11 @@ class RentProvider with ChangeNotifier {
   }
 
   /// Clear this month's payments for a student and put them back to Pending.
-  Future<void> revertToPending(int studentId) async {
+  ///
+  /// Returns what was cleared so the action can be undone — wiping a month's
+  /// collected rent by mistake was previously unrecoverable.
+  Future<PaymentHistoryModel?> revertToPending(int studentId) async {
+    PaymentHistoryModel? cleared;
     try {
       final student = _students.firstWhere((s) => s.id == studentId);
       final updatedStudent = student.copyWith(
@@ -193,12 +231,31 @@ class RentProvider with ChangeNotifier {
       final existing =
           await _paymentHistoryRepo.getPaymentForMonth(studentId, currentMonth);
       if (existing != null) {
+        cleared = existing;
         await _paymentHistoryRepo.deletePaymentRecord(existing.id!);
       }
+      // The instalments go too, or the cash book would keep counting money
+      // that has just been undone.
+      await _paymentHistoryRepo.deleteInstalmentsForMonth(studentId, currentMonth);
 
       await loadStudents();
     } catch (e) {
-      print('Error reverting payment to pending: $e');
+      debugPrint('Error reverting payment to pending: $e');
+    }
+    return cleared;
+  }
+
+  /// Put back a month that [revertToPending] cleared.
+  Future<void> restorePayment(PaymentHistoryModel cleared) async {
+    try {
+      await recordPayment(
+        studentId: cleared.studentId,
+        cashAmount: cleared.cashAmount,
+        upiAmount: cleared.upiAmount,
+        screenshotPath: cleared.screenshotPath,
+      );
+    } catch (e) {
+      debugPrint('Error restoring payment: $e');
     }
   }
 

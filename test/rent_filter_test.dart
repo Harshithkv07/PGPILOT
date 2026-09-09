@@ -29,7 +29,11 @@ void main() {
 
   tearDownAll(() async {
     await DatabaseHelper().close();
-    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    // Windows can still hold the sqlite file briefly after close(); a temp
+    // directory left behind is harmless, a failed teardown is not.
+    try {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    } catch (_) {}
   });
 
   setUp(() async {

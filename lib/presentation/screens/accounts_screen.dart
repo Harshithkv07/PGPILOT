@@ -417,47 +417,52 @@ class _AccountsScreenState extends State<AccountsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildBalanceCard(
-                  'Opening',
-                  provider.todayAccount!.openingBalance,
-                  Icons.account_balance,
-                  AppColors.primaryAccent,
-                  onEdit: () => _showOpeningBalanceDialog(),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildBalanceCard(
-                  'Remaining',
-                  provider.remainingBalance,
-                  Icons.savings,
-                  provider.remainingBalance >= 0 ? AppColors.successColor : AppColors.errorColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
+          // The day's cash box, stated as arithmetic. Cash rent used to be
+          // invisible here even though it is money physically received.
+          // This replaces the two summary cards that showed the same opening
+          // and closing figures without explaining how one became the other.
           PremiumCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             gradient: LinearGradient(
               colors: [AppColors.secondaryAccent.withValues(alpha: 0.2), AppColors.cardBackground],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
-                Text(
-                  provider.isToday ? 'Total Spent Today' : 'Total Spent This Day',
-                  style: const TextStyle(color: AppColors.textSecondary),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _cashRow('Opening', provider.todayAccount!.openingBalance,
+                          AppColors.textSecondary),
+                    ),
+                    InkWell(
+                      onTap: () => _showOpeningBalanceDialog(),
+                      borderRadius: AppRadius.smBorder,
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
+                        child: Icon(Icons.edit, size: 15, color: AppColors.primaryAccent),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  _money(provider.totalExpensesToday),
-                  style: const TextStyle(
-                      color: AppColors.errorColor, fontSize: 18, fontWeight: FontWeight.bold),
+                if (provider.rentCollectedToday > 0) ...[
+                  const SizedBox(height: 8),
+                  _cashRow('Rent collected (cash)', provider.rentCollectedToday,
+                      AppColors.successColor,
+                      sign: '+'),
+                ],
+                const SizedBox(height: 8),
+                _cashRow(
+                  provider.isToday ? 'Spent today' : 'Spent this day',
+                  provider.totalExpensesToday,
+                  AppColors.errorColor,
+                  sign: '−',
                 ),
+                const Divider(height: 22),
+                _cashRow('In hand', provider.remainingBalance,
+                    provider.remainingBalance >= 0
+                        ? AppColors.successColor
+                        : AppColors.errorColor,
+                    bold: true),
               ],
             ),
           ),
@@ -497,45 +502,31 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Widget _buildBalanceCard(String label, double amount, IconData icon, Color color,
-      {VoidCallback? onEdit}) {
-    return PremiumCard(
-      borderColor: color.withValues(alpha: 0.3),
-      boxShadow: [
-        BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4)),
-      ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: color, size: 22),
-              if (onEdit != null)
-                InkWell(
-                  onTap: onEdit,
-                  borderRadius: AppRadius.smBorder,
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.edit, color: AppColors.textSecondary, size: 16),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              _money(amount),
-              style: TextStyle(
-                  fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: color),
+  /// One line of the day's cash arithmetic.
+  Widget _cashRow(String label, double amount, Color color,
+      {String sign = '', bool bold = false}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: bold ? AppColors.textPrimary : AppColors.textSecondary,
+              fontSize: bold ? 14 : 13,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-        ],
-      ),
+        ),
+        Text(
+          '$sign${sign.isEmpty ? '' : ' '}${_money(amount)}',
+          style: TextStyle(
+            fontFamily: 'Sora',
+            fontSize: bold ? 19 : 14,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 

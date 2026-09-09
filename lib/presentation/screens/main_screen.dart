@@ -18,14 +18,24 @@ import 'rent_screen.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/premium_bottom_nav.dart';
+import '../widgets/common/type_to_confirm_dialog.dart';
 import '../widgets/import_students_dialog.dart';
 import '../widgets/monthly_summary_sheet.dart';
 import '../widgets/monthly_overview_sheet.dart';
 
 class MainScreen extends StatefulWidget {
+  /// Defaults to the Room Dashboard. Accounts prompts for an opening balance
+  /// the moment it opens, which is the wrong first thing to show someone who
+  /// has not set up a single room yet.
+  static const int dashboardTab = 1;
+
   final int initialIndex;
   final bool showSummarySheet;
-  const MainScreen({super.key, this.initialIndex = 0, this.showSummarySheet = false});
+  const MainScreen({
+    super.key,
+    this.initialIndex = dashboardTab,
+    this.showSummarySheet = false,
+  });
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -105,6 +115,121 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  /// Calendar of days with their spend — was "Monthly Overview", which read as
+  /// a near-synonym of the Month Report beside it.
+  void _openDayCalendar() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MonthlyOverviewScreen()),
+    );
+  }
+
+  /// Month totals by category — was "Monthly Summary".
+  void _openMonthReport() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        builder: (_, scrollController) => const MonthlySummarySheet(),
+      ),
+    );
+  }
+
+  Future<void> _onMenuSelected(String value) async {
+    switch (value) {
+      case 'new-month':
+        await _startNewMonth();
+      case 'settings':
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        );
+      case 'about':
+        _showAbout();
+      case 'logout':
+        await _confirmLogout();
+    }
+  }
+
+  /// Resets every student's rent for the month. Irreversible and easy to fire
+  /// by accident, so it asks for a word to be typed rather than accepting a
+  /// single tap.
+  Future<void> _startNewMonth() async {
+    final rentProvider = Provider.of<RentProvider>(context, listen: false);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => const TypeToConfirmDialog(
+        title: 'Start New Month',
+        message:
+            'This archives the current month and resets every student to Pending with ₹0 paid. '
+            'It cannot be undone.',
+        requiredWord: 'START',
+        actionLabel: 'Start New Month',
+      ),
+    );
+
+    if (confirmed != true) return;
+    await rentProvider.startNewMonth();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('New month started. All statuses reset to pending.'),
+        backgroundColor: AppColors.successColor,
+      ),
+    );
+  }
+
+  void _showAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: AppStrings.appName,
+      applicationVersion: '1.0.0',
+      applicationIcon: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          gradient: AppColors.goldGradient,
+          borderRadius: AppRadius.mdBorder,
+        ),
+        child: const Icon(Icons.home_work_rounded, size: 36, color: Colors.black),
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.logout),
+            label: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await Provider.of<AuthProvider>(context, listen: false).logout();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
@@ -155,37 +280,20 @@ class _MainScreenState extends State<MainScreen> {
         appBar: AppBar(
           title: Text(_titles[_currentIndex]),
         actions: [
-          // Show overview & summary buttons when on Accounts tab
+          // Contextual actions for the current tab come first; the app-wide
+          // ones live behind a single overflow so the bar never carries five
+          // competing icons (and Logout no longer sits a thumb-width from
+          // Settings).
           if (_currentIndex == 0) ...[
             IconButton(
               icon: const Icon(Icons.calendar_view_month_rounded),
-              tooltip: 'Monthly Overview',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MonthlyOverviewScreen(),
-                  ),
-                );
-              },
+              tooltip: 'Day Calendar',
+              onPressed: _openDayCalendar,
             ),
             IconButton(
               icon: const Icon(Icons.bar_chart_rounded),
-              tooltip: 'Monthly Summary',
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => DraggableScrollableSheet(
-                    initialChildSize: 0.7,
-                    maxChildSize: 0.9,
-                    minChildSize: 0.4,
-                    builder: (_, scrollController) =>
-                        const MonthlySummarySheet(),
-                  ),
-                );
-              },
+              tooltip: 'Month Report',
+              onPressed: _openMonthReport,
             ),
           ],
           if (_currentIndex == 2) ...[
@@ -208,75 +316,49 @@ class _MainScreenState extends State<MainScreen> {
               },
             ),
           ],
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'About',
-            onPressed: () {
-              showAboutDialog(
-                context: context,
-                applicationName: AppStrings.appName,
-                applicationVersion: '1.0.0',
-                applicationIcon: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.goldGradient,
-                    borderRadius: AppRadius.mdBorder,
-                  ),
-                  child: const Icon(
-                    Icons.home_work_rounded,
-                    size: 36,
-                    color: Colors.black,
-                  ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            color: AppColors.cardBackground,
+            onSelected: _onMenuSelected,
+            itemBuilder: (_) => [
+              // Resetting every student's rent is rare and destructive, so it
+              // belongs here rather than as a permanent button on the ledger.
+              if (_currentIndex == 3)
+                const PopupMenuItem(
+                  value: 'new-month',
+                  child: Row(children: [
+                    Icon(Icons.event_repeat, size: 18, color: AppColors.warningColor),
+                    SizedBox(width: 10),
+                    Text('Start new month'),
+                  ]),
                 ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Settings & Data',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.errorColor,
-                      ),
-                      onPressed: () => Navigator.pop(context, true),
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirmed == true && mounted) {
-                await Provider.of<AuthProvider>(context, listen: false).logout();
-                if (mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                }
-              }
-            },
+              const PopupMenuItem(
+                value: 'settings',
+                child: Row(children: [
+                  Icon(Icons.settings, size: 18, color: AppColors.textSecondary),
+                  SizedBox(width: 10),
+                  Text('Settings & Data'),
+                ]),
+              ),
+              const PopupMenuItem(
+                value: 'about',
+                child: Row(children: [
+                  Icon(Icons.info_outline, size: 18, color: AppColors.textSecondary),
+                  SizedBox(width: 10),
+                  Text('About'),
+                ]),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(children: [
+                  Icon(Icons.logout, size: 18, color: AppColors.errorColor),
+                  SizedBox(width: 10),
+                  Text('Logout', style: TextStyle(color: AppColors.errorColor)),
+                ]),
+              ),
+            ],
           ),
         ],
       ),

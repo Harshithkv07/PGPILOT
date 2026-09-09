@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:open_filex/open_filex.dart';
 import '../../logic/providers/room_provider.dart';
 import '../../logic/providers/student_provider.dart';
 import '../../core/constants/app_colors.dart';
@@ -10,6 +11,7 @@ import '../widgets/stats_panel.dart';
 import '../widgets/occupancy_chart.dart';
 import '../widgets/price_manager_dialog.dart';
 import '../widgets/common/empty_state.dart';
+import '../widgets/common/search_field.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -137,69 +139,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Future<void> _showDeleteRoomDialog() async {
-    final roomNumberController = TextEditingController();
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete Room'),
-          content: TextField(
-            controller: roomNumberController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Room Number',
-              prefixIcon: Icon(Icons.meeting_room),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor),
-              onPressed: () async {
-                final roomNumber = roomNumberController.text.trim();
-
-                if (roomNumber.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a room number.'),
-                      backgroundColor: AppColors.errorColor,
-                    ),
-                  );
-                  return;
-                }
-
-                final roomProvider = Provider.of<RoomProvider>(context, listen: false);
-                final success = await roomProvider.deleteRoom(roomNumber);
-
-                if (!mounted) return;
-
-                Navigator.of(context).pop();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Room $roomNumber deleted successfully.'
-                          : 'Cannot delete room $roomNumber. It may have students assigned or does not exist.',
-                    ),
-                    backgroundColor: success ? AppColors.successColor : AppColors.errorColor,
-                  ),
-                );
-              },
-              icon: const Icon(Icons.delete),
-              label: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _downloadExcel() async {
     final studentProvider = Provider.of<StudentProvider>(context, listen: false);
     final roomProvider = Provider.of<RoomProvider>(context, listen: false);
@@ -213,11 +152,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final filePath = await excelService.exportStudentsToExcel(students, roomsMap);
 
     if (mounted) {
+      // A raw path in a SnackBar is not something anyone can act on, so offer
+      // to open the file directly.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Excel file saved: $filePath'),
+          content: Text('Excel saved to $filePath'),
           backgroundColor: AppColors.successColor,
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'OPEN',
+            textColor: Colors.black,
+            onPressed: () => OpenFilex.open(filePath),
+          ),
         ),
       );
     }
@@ -289,6 +235,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: AppSpacing.xl),
 
+              Consumer<RoomProvider>(
+                builder: (context, roomProvider, _) => SearchField(
+                  hintText: 'Search rooms…',
+                  initialValue: roomProvider.query,
+                  onChanged: roomProvider.setQuery,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
               // Controls Row - Responsive
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -342,18 +297,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       SizedBox(
                         width: isMobile ? double.infinity : null,
                         child: ElevatedButton.icon(
-                          onPressed: _showDeleteRoomDialog,
-                          icon: const Icon(Icons.delete),
-                          label: const Text('Delete Room'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.errorColor.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(
-                        width: isMobile ? double.infinity : null,
-                        child: ElevatedButton.icon(
                           onPressed: _showPriceManager,
                           icon: const Icon(Icons.attach_money),
                           label: const Text('Set Prices'),
@@ -400,12 +343,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final rooms = roomProvider.rooms;
 
                   if (rooms.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.only(top: 24),
+                    final noneAtAll = roomProvider.allRooms.isEmpty;
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 24),
                       child: EmptyState(
-                        icon: Icons.meeting_room_outlined,
-                        title: 'No rooms found',
-                        subtitle: 'Add your first room to get started.',
+                        icon: noneAtAll
+                            ? Icons.meeting_room_outlined
+                            : Icons.search_off,
+                        title: noneAtAll
+                            ? 'No rooms found'
+                            : roomProvider.query.isNotEmpty
+                                ? 'No room matches "${roomProvider.query}"'
+                                : 'No rooms match this filter',
+                        subtitle: noneAtAll
+                            ? 'Add your first room to get started.'
+                            : null,
+                        action: noneAtAll
+                            ? null
+                            : TextButton.icon(
+                                onPressed: () {
+                                  roomProvider.setQuery('');
+                                  roomProvider.setFilter('all');
+                                },
+                                icon: const Icon(Icons.clear_all),
+                                label: const Text('Show all rooms'),
+                              ),
                       ),
                     );
                   }

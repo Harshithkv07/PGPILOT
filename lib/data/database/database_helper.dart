@@ -37,7 +37,7 @@ class DatabaseHelper {
     
     final db = await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: onCreate,
       onUpgrade: onUpgrade,
     );
@@ -99,6 +99,20 @@ class DatabaseHelper {
         FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE
       )
     ''');
+
+    // Create rent_payments table
+    await db.execute('''
+      CREATE TABLE rent_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        month TEXT NOT NULL,
+        paid_on TEXT NOT NULL,
+        cash_amount REAL DEFAULT 0,
+        upi_amount REAL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX idx_rent_payments_paid_on ON rent_payments (paid_on)');
 
     // Create expenses table
     await db.execute('''
@@ -269,6 +283,24 @@ class DatabaseHelper {
                  0)
          WHERE rent_status = 'Paid'
       ''');
+    }
+    if (oldVersion < 9) {
+      // payment_history keeps one rolled-up row per student per month, so it
+      // cannot say how much cash arrived on a given *day*. This records each
+      // instalment as it happens, which is what the daily cash book needs.
+      // The rollup is left untouched, so nothing that reads it changes.
+      await db.execute('''
+        CREATE TABLE rent_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          student_id INTEGER NOT NULL,
+          month TEXT NOT NULL,
+          paid_on TEXT NOT NULL,
+          cash_amount REAL DEFAULT 0,
+          upi_amount REAL DEFAULT 0
+        )
+      ''');
+      await db.execute(
+          'CREATE INDEX idx_rent_payments_paid_on ON rent_payments (paid_on)');
     }
   }
 
